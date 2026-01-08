@@ -435,7 +435,7 @@ function AuthGuard() {
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
-          <p className="text-zinc-400 text-sm">Loading...</p>
+          <p className="text-zinc-400 font-mono text-sm animate-pulse">Initializing System...</p>
         </div>
       </div>
     );
