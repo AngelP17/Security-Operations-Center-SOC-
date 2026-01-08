@@ -20,7 +20,7 @@ export function EventsFeed({ events }: EventsFeedProps) {
       case 'low':
         return <Info className="h-4 w-4 text-blue-500" />;
       default:
-        return <CheckCircle2 className="h-4 w-4 text-slate-500" />;
+        return <CheckCircle2 className="h-4 w-4 text-zinc-500" />;
     }
   };
 
@@ -38,10 +38,10 @@ export function EventsFeed({ events }: EventsFeedProps) {
   };
 
   return (
-    <Card className="col-span-3 bg-slate-900/50 border-slate-800 flex flex-col h-[350px]">
+    <Card className="col-span-3 bg-zinc-900/50 border-zinc-800 flex flex-col h-[350px]">
       <CardHeader>
-        <CardTitle className="text-slate-200">Security Events</CardTitle>
-        <CardDescription className="text-slate-500">
+        <CardTitle className="text-zinc-200">Security Events</CardTitle>
+        <CardDescription className="text-zinc-500">
           Real-time security alerts and logs
         </CardDescription>
       </CardHeader>
@@ -49,22 +49,22 @@ export function EventsFeed({ events }: EventsFeedProps) {
         <ScrollArea className="h-full">
           <div className="space-y-4">
             {events.length === 0 ? (
-              <div className="text-center text-sm text-slate-500 py-4">No recent events</div>
+              <div className="text-center text-sm text-zinc-500 py-4">No recent events</div>
             ) : (
               events.map((event) => (
-                <div key={event.id} className="flex items-start space-x-4 border-b border-slate-800/50 pb-4 last:border-0 last:pb-0">
+                <div key={event.id} className="flex items-start space-x-4 border-b border-zinc-800/50 pb-4 last:border-0 last:pb-0">
                   <div className="mt-1">
                     {getSeverityIcon(event.severity)}
                   </div>
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-slate-200">{event.message}</p>
-                      <span className="text-xs text-slate-500">
+                      <p className="text-sm font-medium text-zinc-200">{event.message}</p>
+                      <span className="text-xs text-zinc-500">
                         {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-slate-500">{event.source_ip}</span>
+                      <span className="text-xs font-mono text-zinc-500">{event.source_ip}</span>
                       {getSeverityBadge(event.severity)}
                     </div>
                   </div>

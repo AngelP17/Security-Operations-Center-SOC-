@@ -95,7 +95,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
 
         // Apply transform
         ctx.save();
-        ctx.translate(transform.x, transform.y);
+        ctx.tranzinc(transform.x, transform.y);
         ctx.scale(transform.k, transform.k);
 
         // Draw links
@@ -106,7 +106,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
                 ctx.beginPath();
                 ctx.moveTo(source.x, source.y);
                 ctx.lineTo(target.x, target.y);
-                ctx.strokeStyle = '#334155'; // slate-700
+                ctx.strokeStyle = '#334155'; // zinc-700
                 ctx.lineWidth = 1;
                 ctx.stroke();
             }
@@ -120,12 +120,12 @@ export function NetworkMap({ devices }: NetworkMapProps) {
             // Fill based on status
             if (node.status === 'online') ctx.fillStyle = '#10b981'; // emerald-500
             else if (node.status === 'warning') ctx.fillStyle = '#f59e0b'; // amber-500
-            else ctx.fillStyle = '#64748b'; // slate-500
+            else ctx.fillStyle = '#64748b'; // zinc-500
 
             ctx.fill();
 
             // Stroke
-            ctx.strokeStyle = '#0f172a'; // slate-900
+            ctx.strokeStyle = '#0f172a'; // zinc-900
             ctx.lineWidth = 3;
             ctx.stroke();
 
@@ -138,7 +138,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
             ctx.fillText(icon, node.x, node.y);
 
             // Label
-            ctx.fillStyle = '#94a3b8'; // slate-400
+            ctx.fillStyle = '#94a3b8'; // zinc-400
             ctx.font = '10px Inter, sans-serif';
             ctx.fillText(node.label.substring(0, 15), node.x, node.y + 30);
         });
@@ -147,11 +147,11 @@ export function NetworkMap({ devices }: NetworkMapProps) {
     }, [nodes, links, transform]);
 
     return (
-        <Card className="col-span-4 bg-slate-900/50 border-slate-800">
+        <Card className="col-span-4 bg-zinc-900/50 border-zinc-800">
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>
-                        <CardTitle className="flex items-center gap-2 text-slate-200">
+                        <CardTitle className="flex items-center gap-2 text-zinc-200">
                             <Network className="w-5 h-5 text-blue-500" />
                             Network Topology
                         </CardTitle>
@@ -170,7 +170,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="p-0 overflow-hidden relative h-[500px] bg-slate-950/50">
+            <CardContent className="p-0 overflow-hidden relative h-[500px] bg-black/50">
                 <canvas
                     ref={canvasRef}
                     width={800}
@@ -180,11 +180,11 @@ export function NetworkMap({ devices }: NetworkMapProps) {
                         // Basic drag implementation could go here
                     }}
                 />
-                <div className="absolute bottom-4 right-4 flex flex-col gap-2 bg-slate-900/80 p-2 rounded border border-slate-700 text-xs text-slate-400">
+                <div className="absolute bottom-4 right-4 flex flex-col gap-2 bg-zinc-900/80 p-2 rounded border border-zinc-700 text-xs text-zinc-400">
                     <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Online</div>
-                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-slate-500"></span> Offline</div>
-                    <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border border-slate-500 bg-slate-800 flex items-center justify-center text-[10px] text-white">R</div> Router</div>
-                    <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border border-slate-500 bg-slate-800 flex items-center justify-center text-[10px] text-white">S</div> Server</div>
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-zinc-500"></span> Offline</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border border-zinc-500 bg-zinc-800 flex items-center justify-center text-[10px] text-white">R</div> Router</div>
+                    <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border border-zinc-500 bg-zinc-800 flex items-center justify-center text-[10px] text-white">S</div> Server</div>
                 </div>
             </CardContent>
         </Card>

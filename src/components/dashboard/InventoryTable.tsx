@@ -87,11 +87,11 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
           </Badge>
         );
       case 'offline':
-        return <Badge variant="outline" className="text-slate-500 border-slate-700 bg-slate-800/50"><WifiOff className="w-3 h-3 mr-1" /> Offline</Badge>;
+        return <Badge variant="outline" className="text-zinc-500 border-zinc-700 bg-zinc-800/50"><WifiOff className="w-3 h-3 mr-1" /> Offline</Badge>;
       case 'warning':
         return <Badge className="bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 border-amber-500/50"><AlertTriangle className="w-3 h-3 mr-1" /> Warning</Badge>;
       default:
-        return <Badge variant="outline" className="text-slate-500">Unknown</Badge>;
+        return <Badge variant="outline" className="text-zinc-500">Unknown</Badge>;
     }
   };
 
@@ -108,7 +108,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
   // Render open ports with risk highlighting
   const renderPorts = (ports: string[] | undefined) => {
     if (!ports || ports.length === 0) {
-      return <span className="text-slate-500 text-xs">None</span>;
+      return <span className="text-zinc-500 text-xs">None</span>;
     }
 
     return (
@@ -123,12 +123,12 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                 <TooltipTrigger>
                   <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono ${isDangerous
                       ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      : 'bg-slate-800 text-slate-400'
+                      : 'bg-zinc-800 text-zinc-400'
                     }`}>
                     {port}
                   </span>
                 </TooltipTrigger>
-                <TooltipContent className="bg-slate-800 border-slate-700">
+                <TooltipContent className="bg-zinc-800 border-zinc-700">
                   <p className="font-medium">{info.name}</p>
                   <p className={`text-xs capitalize ${info.risk === 'critical' ? 'text-red-400' :
                       info.risk === 'high' ? 'text-orange-400' :
@@ -140,7 +140,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
           );
         })}
         {ports.length > 5 && (
-          <span className="text-xs text-slate-500">+{ports.length - 5}</span>
+          <span className="text-xs text-zinc-500">+{ports.length - 5}</span>
         )}
       </div>
     );
@@ -153,7 +153,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search IP, MAC, Hostname, Vendor..."
-            className="pl-8 bg-slate-900/50 border-slate-800"
+            className="pl-8 bg-zinc-900/50 border-zinc-800"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -163,19 +163,19 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
         </div>
       </div>
 
-      <div className="rounded-md border border-slate-800 bg-slate-900/30">
+      <div className="rounded-md border border-zinc-800 bg-zinc-900/30">
         <Table>
-          <TableHeader className="bg-slate-900/80">
-            <TableRow className="border-slate-800 hover:bg-slate-900/80">
-              <TableHead className="text-slate-400">Status</TableHead>
-              <TableHead className="text-slate-400">Hostname</TableHead>
-              <TableHead className="text-slate-400">IP Address</TableHead>
-              <TableHead className="text-slate-400">MAC Address</TableHead>
-              <TableHead className="text-slate-400">Vendor</TableHead>
-              <TableHead className="text-slate-400">Ports</TableHead>
-              <TableHead className="text-slate-400">Risk</TableHead>
-              <TableHead className="text-slate-400">Trust</TableHead>
-              {canWrite && <TableHead className="text-right text-slate-400">Actions</TableHead>}
+          <TableHeader className="bg-zinc-900/80">
+            <TableRow className="border-zinc-800 hover:bg-zinc-900/80">
+              <TableHead className="text-zinc-400">Status</TableHead>
+              <TableHead className="text-zinc-400">Hostname</TableHead>
+              <TableHead className="text-zinc-400">IP Address</TableHead>
+              <TableHead className="text-zinc-400">MAC Address</TableHead>
+              <TableHead className="text-zinc-400">Vendor</TableHead>
+              <TableHead className="text-zinc-400">Ports</TableHead>
+              <TableHead className="text-zinc-400">Risk</TableHead>
+              <TableHead className="text-zinc-400">Trust</TableHead>
+              {canWrite && <TableHead className="text-right text-zinc-400">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -183,7 +183,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
               <TableRow>
                 <TableCell colSpan={canWrite ? 9 : 8} className="h-24 text-center">
                   <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-slate-600 border-t-emerald-500 rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-zinc-600 border-t-emerald-500 rounded-full animate-spin" />
                     Loading network inventory...
                   </div>
                 </TableCell>
@@ -203,7 +203,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                 return (
                   <TableRow
                     key={device.id}
-                    className={`border-slate-800 hover:bg-slate-800/30 transition-colors ${!isAuthorized ? 'bg-red-500/5' : ''
+                    className={`border-zinc-800 hover:bg-zinc-800/30 transition-colors ${!isAuthorized ? 'bg-red-500/5' : ''
                       }`}
                   >
                     <TableCell>{getStatusBadge(device.status)}</TableCell>
@@ -212,16 +212,16 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                     <TableCell>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger className="font-medium text-slate-200 hover:text-blue-400 cursor-help">
+                          <TooltipTrigger className="font-medium text-zinc-200 hover:text-blue-400 cursor-help">
                             {device.hostname}
                           </TooltipTrigger>
-                          <TooltipContent className="bg-slate-800 border-slate-700 max-w-xs">
+                          <TooltipContent className="bg-zinc-800 border-zinc-700 max-w-xs">
                             <div className="space-y-1">
                               <p className="font-semibold text-white">{device.hostname}</p>
                               <div className="text-xs space-y-0.5">
-                                <p className="text-slate-400">First seen: <span className="text-slate-300">{device.first_seen}</span></p>
-                                <p className="text-slate-400">Last seen: <span className="text-slate-300">{device.last_seen}</span></p>
-                                {device.notes && <p className="text-slate-400">Notes: <span className="text-slate-300">{device.notes}</span></p>}
+                                <p className="text-zinc-400">First seen: <span className="text-zinc-300">{device.first_seen}</span></p>
+                                <p className="text-zinc-400">Last seen: <span className="text-zinc-300">{device.last_seen}</span></p>
+                                {device.notes && <p className="text-zinc-400">Notes: <span className="text-zinc-300">{device.notes}</span></p>}
                               </div>
                             </div>
                           </TooltipContent>
@@ -235,19 +235,19 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                     <TableCell>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger className="font-mono text-xs text-slate-500 hover:text-slate-300 cursor-help">
+                          <TooltipTrigger className="font-mono text-xs text-zinc-500 hover:text-zinc-300 cursor-help">
                             {mac || '-'}
                           </TooltipTrigger>
-                          <TooltipContent className="bg-slate-800 border-slate-700">
+                          <TooltipContent className="bg-zinc-800 border-zinc-700">
                             <p className="font-medium">Device Info</p>
-                            <p className="text-xs text-slate-400">MAC: {mac || 'Unknown'}</p>
-                            <p className="text-xs text-slate-400">Vendor: {device.vendor}</p>
+                            <p className="text-xs text-zinc-400">MAC: {mac || 'Unknown'}</p>
+                            <p className="text-xs text-zinc-400">Vendor: {device.vendor}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </TableCell>
 
-                    <TableCell className="text-slate-400">{device.vendor}</TableCell>
+                    <TableCell className="text-zinc-400">{device.vendor}</TableCell>
                     <TableCell>{renderPorts(device.open_ports)}</TableCell>
 
                     {/* Risk Level */}

@@ -55,10 +55,10 @@ export function NetworkTraffic() {
   }, []);
 
   return (
-    <Card className="col-span-4 bg-slate-900/50 border-slate-800">
+    <Card className="col-span-4 bg-zinc-900/50 border-zinc-800">
       <CardHeader>
-        <CardTitle className="text-slate-200">Network Traffic</CardTitle>
-        <CardDescription className="text-slate-500">
+        <CardTitle className="text-zinc-200">Network Traffic</CardTitle>
+        <CardDescription className="text-zinc-500">
           Inbound vs Outbound traffic (MB/s) over last 24h
         </CardDescription>
       </CardHeader>
@@ -66,7 +66,7 @@ export function NetworkTraffic() {
         <div className="h-[200px] w-full">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
-              <div className="w-6 h-6 border-2 border-slate-600 border-t-emerald-500 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-zinc-600 border-t-emerald-500 rounded-full animate-spin" />
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">

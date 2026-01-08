@@ -87,10 +87,10 @@ export function AddDeviceDialog() {
                     Add Device
                 </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-900 border-slate-800 text-slate-100">
+            <DialogContent className="bg-zinc-900 border-zinc-800 text-zinc-100">
                 <DialogHeader>
                     <DialogTitle>Add New Device</DialogTitle>
-                    <DialogDescription className="text-slate-400">
+                    <DialogDescription className="text-zinc-400">
                         Manually register a device in the network inventory.
                     </DialogDescription>
                 </DialogHeader>
@@ -102,7 +102,7 @@ export function AddDeviceDialog() {
                             <Input
                                 id="hostname"
                                 placeholder="web-server-01"
-                                className="bg-slate-800 border-slate-700"
+                                className="bg-zinc-800 border-zinc-700"
                                 {...register('hostname', { required: true })}
                             />
                             {errors.hostname && <span className="text-xs text-red-400">Required</span>}
@@ -112,7 +112,7 @@ export function AddDeviceDialog() {
                             <Input
                                 id="ip"
                                 placeholder="192.168.1.10"
-                                className="bg-slate-800 border-slate-700"
+                                className="bg-zinc-800 border-zinc-700"
                                 {...register('ip_address', {
                                     required: true,
                                     pattern: /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
@@ -125,7 +125,7 @@ export function AddDeviceDialog() {
                             <Input
                                 id="mac"
                                 placeholder="AA:BB:CC:DD:EE:FF"
-                                className="bg-slate-800 border-slate-700"
+                                className="bg-zinc-800 border-zinc-700"
                                 {...register('mac_address')}
                             />
                         </div>
@@ -134,7 +134,7 @@ export function AddDeviceDialog() {
                             <Input
                                 id="vendor"
                                 placeholder="Cisco, Dell, Apple..."
-                                className="bg-slate-800 border-slate-700"
+                                className="bg-zinc-800 border-zinc-700"
                                 {...register('vendor')}
                             />
                         </div>
