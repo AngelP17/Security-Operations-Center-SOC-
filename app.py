@@ -1189,6 +1189,169 @@ def api_reset_password():
         print(f"[AUTH] Error resetting password: {e}")
         return jsonify({'error': str(e)}), 500
 
+# --- DEMO DATA & NETWORK SCANNING ---
+import socket
+import random
+
+DEMO_DEVICES = [
+    {'ip': '192.168.1.1', 'hostname': 'gateway-router', 'mac': 'AA:BB:CC:DD:EE:01', 'vendor': 'Cisco', 'ports': '22,80,443', 'authorized': 1, 'risk': 'low'},
+    {'ip': '192.168.1.10', 'hostname': 'web-server-01', 'mac': 'AA:BB:CC:DD:EE:10', 'vendor': 'Dell', 'ports': '22,80,443,8080', 'authorized': 1, 'risk': 'low'},
+    {'ip': '192.168.1.20', 'hostname': 'db-server-prod', 'mac': 'AA:BB:CC:DD:EE:20', 'vendor': 'HP', 'ports': '22,3306,5432', 'authorized': 1, 'risk': 'medium'},
+    {'ip': '192.168.1.50', 'hostname': 'workstation-admin', 'mac': 'AA:BB:CC:DD:EE:50', 'vendor': 'Lenovo', 'ports': '22,3389', 'authorized': 1, 'risk': 'low'},
+    {'ip': '192.168.1.105', 'hostname': 'unknown-device', 'mac': 'FF:FF:FF:AA:BB:CC', 'vendor': 'Unknown', 'ports': '22,23,80', 'authorized': 0, 'risk': 'critical'},
+    {'ip': '192.168.1.200', 'hostname': 'nas-storage', 'mac': 'AA:BB:CC:DD:EE:C8', 'vendor': 'Synology', 'ports': '22,80,443,445', 'authorized': 1, 'risk': 'medium'},
+    {'ip': '192.168.1.201', 'hostname': 'printer-office', 'mac': 'AA:BB:CC:DD:EE:C9', 'vendor': 'HP', 'ports': '80,9100', 'authorized': 1, 'risk': 'low'},
+]
+
+DEMO_EVENTS = [
+    {'type': 'port_scan', 'severity': 'critical', 'ip': '192.168.1.105', 'desc': 'Port scan detected from 192.168.1.105'},
+    {'type': 'failed_login', 'severity': 'high', 'ip': '192.168.1.201', 'desc': 'Failed login attempt (root)'},
+    {'type': 'new_device', 'severity': 'medium', 'ip': '192.168.1.201', 'desc': 'New device discovered'},
+    {'type': 'device_authorized', 'severity': 'low', 'ip': '192.168.1.50', 'desc': 'Device authorized by admin'},
+]
+
+def populate_demo_data():
+    """Populate database with demo data if empty."""
+    conn = get_db_connection()
+    if not conn:
+        print("[DEMO] No database connection, skipping demo data")
+        return
+    
+    try:
+        cur = conn.cursor()
+        
+        # Check if devices table is empty
+        cur.execute("SELECT COUNT(*) as count FROM network_devices")
+        device_count = cur.fetchone()['count']
+        
+        if device_count == 0:
+            print("[DEMO] Populating demo network devices...")
+            for d in DEMO_DEVICES:
+                cur.execute('''
+                    INSERT INTO network_devices (ip_address, hostname, mac_address, vendor, open_ports, 
+                                                 risk_level, status, is_authorized, first_seen, last_seen)
+                    VALUES (%s, %s, %s, %s, %s, %s, 'up', %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (ip_address) DO NOTHING
+                ''', (d['ip'], d['hostname'], d['mac'], d['vendor'], d['ports'], d['risk'], d['authorized']))
+            print(f"[DEMO] Added {len(DEMO_DEVICES)} demo devices")
+        
+        # Check if events table is empty
+        cur.execute("SELECT COUNT(*) as count FROM security_events")
+        event_count = cur.fetchone()['count']
+        
+        if event_count == 0:
+            print("[DEMO] Populating demo security events...")
+            for e in DEMO_EVENTS:
+                cur.execute('''
+                    INSERT INTO security_events (event_type, severity, ip_address, description)
+                    VALUES (%s, %s, %s, %s)
+                ''', (e['type'], e['severity'], e['ip'], e['desc']))
+            print(f"[DEMO] Added {len(DEMO_EVENTS)} demo events")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[DEMO] Error populating demo data: {e}")
+
+@app.route('/api/security/scan', methods=['POST'])
+@admin_required
+def api_network_scan():
+    """Perform real network scan on local subnet."""
+    try:
+        # Get local IP to determine subnet
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        
+        subnet = '.'.join(local_ip.split('.')[:-1])
+        print(f"[SOC] Starting network scan on subnet {subnet}.0/24")
+        
+        discovered = []
+        common_ports = [22, 23, 80, 443, 445, 3389, 8080, 3306, 5432]
+        
+        # Scan a limited range for demo (1-20)
+        for i in range(1, 21):
+            ip = f"{subnet}.{i}"
+            open_ports = []
+            
+            for port in common_ports:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(0.1)
+                    result = sock.connect_ex((ip, port))
+                    if result == 0:
+                        open_ports.append(str(port))
+                    sock.close()
+                except:
+                    pass
+            
+            if open_ports:
+                # Try to get hostname
+                try:
+                    hostname = socket.gethostbyaddr(ip)[0]
+                except:
+                    hostname = f"host-{ip.split('.')[-1]}"
+                
+                # Determine risk level
+                risky_ports = ['22', '23', '3389', '445']
+                risk = 'low'
+                if any(p in open_ports for p in risky_ports):
+                    risk = 'medium'
+                if '23' in open_ports:  # Telnet is high risk
+                    risk = 'high'
+                
+                device = {
+                    'ip_address': ip,
+                    'hostname': hostname[:50],
+                    'open_ports': ','.join(open_ports),
+                    'risk_level': risk,
+                    'status': 'up'
+                }
+                discovered.append(device)
+                
+                # Add to database
+                conn = get_db_connection()
+                if conn:
+                    try:
+                        cur = conn.cursor()
+                        cur.execute('''
+                            INSERT INTO network_devices (ip_address, hostname, open_ports, risk_level, status, is_authorized, first_seen, last_seen)
+                            VALUES (%s, %s, %s, %s, 'up', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            ON CONFLICT (ip_address) DO UPDATE SET
+                                hostname = EXCLUDED.hostname,
+                                open_ports = EXCLUDED.open_ports,
+                                risk_level = EXCLUDED.risk_level,
+                                status = EXCLUDED.status,
+                                last_seen = CURRENT_TIMESTAMP
+                        ''', (ip, hostname[:50], ','.join(open_ports), risk))
+                        
+                        # Log scan event
+                        cur.execute('''
+                            INSERT INTO security_events (event_type, severity, ip_address, description)
+                            VALUES ('network_scan', 'low', %s, %s)
+                        ''', (ip, f'Device discovered: {hostname} with ports {",".join(open_ports)}'))
+                        
+                        conn.commit()
+                        cur.close()
+                        conn.close()
+                    except Exception as e:
+                        print(f"[SOC] Error saving scanned device: {e}")
+        
+        print(f"[SOC] Scan complete. Discovered {len(discovered)} devices")
+        return jsonify({
+            'status': 'success',
+            'discovered': len(discovered),
+            'subnet': f"{subnet}.0/24",
+            'devices': discovered
+        })
+    except Exception as e:
+        print(f"[SOC] Scan error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 # Startup diagnostics
 def print_diagnostics():
     """Print startup diagnostics."""
@@ -1230,6 +1393,9 @@ def print_diagnostics():
 
 # Run diagnostics on startup
 print_diagnostics()
+
+# Populate demo data if database is empty
+populate_demo_data()
 
 if __name__ == '__main__':
     print("\n" + "="*50)
