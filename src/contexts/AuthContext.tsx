@@ -72,6 +72,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         ...profile,
                         lastLogin: new Date()
                     }, { merge: true });
+                } else {
+                    // Profile missing (e.g. created before DB existed). Create default profile.
+                    const newProfile: UserProfile = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email || '',
+                        displayName: firebaseUser.displayName || 'Agent',
+                        role: 'admin', // Default to admin for recovery/first user
+                        createdAt: new Date(),
+                        lastLogin: new Date()
+                    };
+                    try {
+                        await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+                        setUserProfile(newProfile);
+                        console.log("Recovered missing profile for user");
+                    } catch (e) {
+                        console.error("Failed to recover profile", e);
+                    }
                 }
             } else {
                 setUserProfile(null);
