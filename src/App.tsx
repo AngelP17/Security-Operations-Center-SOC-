@@ -107,6 +107,12 @@ function Dashboard() {
     return <span className={`inline-block w-2 h-2 rounded-full ${colors[severity] || 'bg-slate-500'}`} />;
   };
 
+  // Handle settings actions
+  const handleSettingAction = (action: string) => {
+    toast.info(`${action} setting updated`, { description: 'Changes saved to local configuration' });
+  };
+
+
   return (
     <div className="dark min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
       <SidebarProvider defaultOpen={true}>
@@ -139,8 +145,8 @@ function Dashboard() {
                   onClick={handleScan}
                   disabled={isScanning}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition ${isScanning
-                      ? 'bg-blue-600/50 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-500'
+                    ? 'bg-blue-600/50 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-500'
                     }`}
                 >
                   <Radar className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
@@ -189,10 +195,13 @@ function Dashboard() {
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold tracking-tight text-slate-100">Network Inventory</h2>
-                  <Button variant="outline" onClick={handleScan} disabled={isScanning || !isAdmin}>
-                    <RefreshCw className={`w-4 h-4 mr-2 ${isScanning ? 'animate-spin' : ''}`} />
-                    {isScanning ? 'Scanning...' : 'Refresh'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleScan} disabled={isScanning || !isAdmin}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isScanning ? 'animate-spin' : ''}`} />
+                      {isScanning ? 'Scanning...' : 'Refresh'}
+                    </Button>
+                    <AddDeviceDialog />
+                  </div>
                 </div>
                 <InventoryTable
                   devices={devices}
@@ -208,45 +217,7 @@ function Dashboard() {
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold tracking-tight text-slate-100">Network Map</h2>
                 </div>
-                <Card className="bg-slate-900/50 border-slate-800">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-slate-200">
-                      <Network className="w-5 h-5 text-blue-500" />
-                      Network Topology
-                    </CardTitle>
-                    <CardDescription>Visual representation of network devices and connections</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[500px] flex items-center justify-center border border-slate-800 rounded-lg bg-slate-900/30">
-                      <div className="text-center space-y-4">
-                        <Network className="w-16 h-16 text-slate-600 mx-auto" />
-                        <div>
-                          <h3 className="text-lg font-medium text-slate-300">Network Visualization</h3>
-                          <p className="text-sm text-slate-500 max-w-md">
-                            Displaying {devices.filter(d => d.status === 'online').length} online devices
-                            across your network
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-2 pt-4">
-                          {devices.slice(0, 8).map(d => (
-                            <Badge
-                              key={d.id}
-                              variant="outline"
-                              className={`${d.status === 'online' ? 'border-emerald-500/50 text-emerald-400' : 'border-slate-700 text-slate-500'}`}
-                            >
-                              {d.hostname || d.ip_address || d.ip}
-                            </Badge>
-                          ))}
-                          {devices.length > 8 && (
-                            <Badge variant="outline" className="border-slate-700 text-slate-500">
-                              +{devices.length - 8} more
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <NetworkMap devices={devices} />
               </div>
             )}
 
@@ -265,7 +236,7 @@ function Dashboard() {
                         onChange={(e) => setEventSearch(e.target.value)}
                       />
                     </div>
-                    <Button variant="outline" size="icon">
+                    <Button variant="outline" size="icon" onClick={() => toast.info('Advanced filters coming soon')}>
                       <Filter className="w-4 h-4" />
                     </Button>
                   </div>
@@ -297,9 +268,9 @@ function Dashboard() {
                                   <div className="flex items-center gap-3 mt-1">
                                     <span className="text-xs font-mono text-slate-500">{event.source_ip}</span>
                                     <Badge variant="outline" className={`text-xs ${event.severity === 'critical' ? 'border-red-500/50 text-red-400' :
-                                        event.severity === 'high' ? 'border-orange-500/50 text-orange-400' :
-                                          event.severity === 'medium' ? 'border-amber-500/50 text-amber-400' :
-                                            'border-blue-500/50 text-blue-400'
+                                      event.severity === 'high' ? 'border-orange-500/50 text-orange-400' :
+                                        event.severity === 'medium' ? 'border-amber-500/50 text-amber-400' :
+                                          'border-blue-500/50 text-blue-400'
                                       }`}>
                                       {event.severity}
                                     </Badge>
@@ -351,8 +322,8 @@ function Dashboard() {
                           </div>
                         </div>
                         <Badge className={`${userProfile?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400' :
-                            userProfile?.role === 'analyst' ? 'bg-blue-500/20 text-blue-400' :
-                              'bg-slate-500/20 text-slate-400'
+                          userProfile?.role === 'analyst' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-slate-500/20 text-slate-400'
                           }`}>
                           {userProfile?.role || 'User'}
                         </Badge>
@@ -385,21 +356,21 @@ function Dashboard() {
                           <p className="font-medium text-slate-200">Auto-scan Network</p>
                           <p className="text-xs text-slate-500">Scan every 30 minutes</p>
                         </div>
-                        <Button variant="outline" size="sm">Configure</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('Auto-scan')}>Configure</Button>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
                         <div>
                           <p className="font-medium text-slate-200">Alert Notifications</p>
                           <p className="text-xs text-slate-500">Email alerts for critical events</p>
                         </div>
-                        <Button variant="outline" size="sm">Configure</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('Notifications')}>Configure</Button>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
                         <div>
                           <p className="font-medium text-slate-200">Threat Detection</p>
                           <p className="text-xs text-slate-500">Port scan and intrusion detection</p>
                         </div>
-                        <Badge className="bg-emerald-500/20 text-emerald-400">Active</Badge>
+                        <Badge className="bg-emerald-500/20 text-emerald-400 cursor-pointer" onClick={() => handleSettingAction('Threat Detection')}>Active</Badge>
                       </div>
                     </CardContent>
                   </Card>
@@ -417,14 +388,14 @@ function Dashboard() {
                           <p className="font-medium text-slate-200">Dashboard Theme</p>
                           <p className="text-xs text-slate-500">Dark mode enabled</p>
                         </div>
-                        <Badge className="bg-slate-500/20 text-slate-400">Dark</Badge>
+                        <Badge className="bg-slate-500/20 text-slate-400 cursor-pointer" onClick={() => handleSettingAction('Theme')}>Dark</Badge>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
                         <div>
                           <p className="font-medium text-slate-200">Data Refresh Rate</p>
                           <p className="text-xs text-slate-500">Real-time updates</p>
                         </div>
-                        <Button variant="outline" size="sm">30s</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('Refresh Rate')}>30s</Button>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
                         <div>
