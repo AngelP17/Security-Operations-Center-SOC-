@@ -44,6 +44,21 @@ PORT_SERVICES = {
     8443: 'HTTPS-Alt'
 }
 
+def get_local_subnet():
+    """Auto-detect the local network subnet."""
+    try:
+        # Get local IP address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        # Extract subnet (first 3 octets)
+        parts = local_ip.split('.')
+        return '.'.join(parts[:3])
+    except Exception:
+        return '192.168.1'  # Fallback
+
+
 # MAC vendor prefixes (common ones for identification)
 MAC_VENDORS = {
     '00:50:56': 'VMware',
@@ -461,11 +476,30 @@ def get_traffic_data():
         return jsonify(traffic)
 
 
+@app.route('/api/security/network-info')
+def get_network_info():
+    """Get local network information."""
+    subnet = get_local_subnet()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        local_ip = "Unknown"
+
+    return jsonify({
+        'subnet': subnet,
+        'local_ip': local_ip,
+        'scan_range': f'{subnet}.1-254'
+    })
+
+
 @app.route('/api/security/scan', methods=['POST'])
 def start_scan():
     """Start a network scan."""
     data = request.json or {}
-    subnet = data.get('subnet', '192.168.1')
+    subnet = data.get('subnet') or get_local_subnet()
 
     # Log scan start event
     log_security_event(

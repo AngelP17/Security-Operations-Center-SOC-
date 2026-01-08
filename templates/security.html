@@ -1606,18 +1606,24 @@
         // Network scan
         async function startNetworkScan() {
             const overlay = document.getElementById('scanning-overlay');
+            const statusEl = document.getElementById('scanning-status');
             overlay.classList.add('active');
 
             try {
+                // Get network info first
+                const infoResp = await fetch('/api/security/network-info');
+                const networkInfo = await infoResp.json();
+                statusEl.textContent = `Discovering devices on ${networkInfo.subnet}.0/24`;
+
                 const response = await fetch('/api/security/scan', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ subnet: '192.168.1' })
+                    body: JSON.stringify({})  // Let server auto-detect subnet
                 });
 
                 const result = await response.json();
                 showToast('success', 'Scan Complete',
-                    `Found ${result.total_found} devices (${result.new_devices} new)`);
+                    `Found ${result.total_found} real devices (${result.new_devices} new)`);
                 await loadDashboardData();
             } catch (error) {
                 showToast('error', 'Scan Failed', error.message);
@@ -1784,14 +1790,14 @@
             return str.charAt(0).toUpperCase() + str.slice(1);
         }
 
-        // Initialize demo data on first load
+        // Auto-scan network on first load if no devices
         (async function() {
-            // Check if we have any devices, if not load demo data
             setTimeout(async () => {
                 if (allDevices.length === 0) {
-                    await simulateData();
+                    showToast('info', 'Auto-Scanning', 'Scanning your network for real devices...');
+                    await startNetworkScan();
                 }
-            }, 1000);
+            }, 1500);
         })();
     </script>
 </body>
