@@ -95,7 +95,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
 
         // Apply transform
         ctx.save();
-        ctx.tranzinc(transform.x, transform.y);
+        ctx.translate(transform.x, transform.y);
         ctx.scale(transform.k, transform.k);
 
         // Draw links
@@ -152,7 +152,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
                 <div className="flex items-center justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-zinc-200">
-                            <Network className="w-5 h-5 text-blue-500" />
+                            <Network className="w-5 h-5 text-emerald-500" />
                             Network Topology
                         </CardTitle>
                         <CardDescription>Live visualization of {nodes.length - 1} connected devices</CardDescription>

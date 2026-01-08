@@ -18,7 +18,7 @@ export function EventsFeed({ events }: EventsFeedProps) {
       case 'medium':
         return <AlertTriangle className="h-4 w-4 text-amber-500" />;
       case 'low':
-        return <Info className="h-4 w-4 text-blue-500" />;
+        return <Info className="h-4 w-4 text-emerald-500" />;
       default:
         return <CheckCircle2 className="h-4 w-4 text-zinc-500" />;
     }
@@ -33,7 +33,7 @@ export function EventsFeed({ events }: EventsFeedProps) {
       case 'medium':
         return <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20">Medium</Badge>;
       case 'low':
-        return <Badge variant="outline" className="text-blue-500 border-blue-500/20">Low</Badge>;
+        return <Badge variant="outline" className="text-emerald-500 border-emerald-500/20">Low</Badge>;
     }
   };
 

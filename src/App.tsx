@@ -5,6 +5,8 @@ import { InventoryTable } from './components/dashboard/InventoryTable';
 import { StatsCards } from './components/dashboard/StatsCards';
 import { NetworkTraffic } from './components/dashboard/NetworkTraffic';
 import { EventsFeed } from './components/dashboard/EventsFeed';
+import { AddDeviceDialog } from './components/dashboard/AddDeviceDialog';
+import { NetworkMap } from './components/dashboard/NetworkMap';
 import { Login } from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { subscribeToDevices, subscribeToEvents, triggerNetworkScan, logSecurityEvent } from './services/api';
@@ -75,7 +77,17 @@ function Dashboard() {
         source_ip: 'local'
       });
     } catch (error) {
-      toast.error('Network scan failed - check backend connection');
+      toast.error('Network scan backend unavailable', {
+        description: 'Start the Flask backend server or add devices manually',
+        duration: 4000
+      });
+
+      await logSecurityEvent({
+        event_type: 'network_scan',
+        severity: 'medium',
+        description: 'Network scan failed - backend connection unavailable',
+        source_ip: 'local'
+      });
     } finally {
       setIsScanning(false);
     }
@@ -102,7 +114,7 @@ function Dashboard() {
       critical: 'bg-red-500',
       high: 'bg-orange-500',
       medium: 'bg-amber-500',
-      low: 'bg-blue-500'
+      low: 'bg-emerald-500'
     };
     return <span className={`inline-block w-2 h-2 rounded-full ${colors[severity] || 'bg-zinc-500'}`} />;
   };
@@ -114,7 +126,7 @@ function Dashboard() {
 
 
   return (
-    <div className="dark min-h-screen bg-black text-zinc-100 font-sans selection:bg-indigo-500/30">
+    <div className="dark min-h-screen bg-black text-zinc-100 font-sans selection:bg-emerald-500/30">
       <SidebarProvider defaultOpen={true}>
         <AppSidebar activeView={activeView} onNavigate={setActiveView} />
         <SidebarInset className="bg-black">
@@ -145,8 +157,8 @@ function Dashboard() {
                   onClick={handleScan}
                   disabled={isScanning}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition ${isScanning
-                    ? 'bg-blue-600/50 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-500'
+                    ? 'bg-emerald-600/50 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-500'
                     }`}
                 >
                   <Radar className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
@@ -270,7 +282,7 @@ function Dashboard() {
                                     <Badge variant="outline" className={`text-xs ${event.severity === 'critical' ? 'border-red-500/50 text-red-400' :
                                       event.severity === 'high' ? 'border-orange-500/50 text-orange-400' :
                                         event.severity === 'medium' ? 'border-amber-500/50 text-amber-400' :
-                                          'border-blue-500/50 text-blue-400'
+                                          'border-emerald-500/50 text-emerald-400'
                                       }`}>
                                       {event.severity}
                                     </Badge>
@@ -303,7 +315,7 @@ function Dashboard() {
                 <Card className="bg-zinc-900/50 border-zinc-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-zinc-200">
-                      <Users className="w-5 h-5 text-purple-500" />
+                      <Users className="w-5 h-5 text-emerald-500" />
                       System Users
                     </CardTitle>
                     <CardDescription>Manage user accounts and permissions</CardDescription>
@@ -322,7 +334,7 @@ function Dashboard() {
                           </div>
                         </div>
                         <Badge className={`${userProfile?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400' :
-                          userProfile?.role === 'analyst' ? 'bg-blue-500/20 text-blue-400' :
+                          userProfile?.role === 'analyst' ? 'bg-amber-500/20 text-amber-400' :
                             'bg-zinc-500/20 text-zinc-400'
                           }`}>
                           {userProfile?.role || 'User'}
@@ -330,7 +342,7 @@ function Dashboard() {
                       </div>
                       <p className="text-sm text-zinc-500 pt-4">
                         User management requires Firebase Console access.
-                        Configure users at <a href="https://console.firebase.google.com" target="_blank" className="text-blue-400 hover:underline">Firebase Console</a>.
+                        Configure users at <a href="https://console.firebase.google.com" target="_blank" className="text-emerald-400 hover:underline">Firebase Console</a>.
                       </p>
                     </div>
                   </CardContent>
@@ -378,7 +390,7 @@ function Dashboard() {
                   <Card className="bg-zinc-900/50 border-zinc-800">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-zinc-200">
-                        <Settings className="w-5 h-5 text-blue-500" />
+                        <Settings className="w-5 h-5 text-zinc-400" />
                         Application Settings
                       </CardTitle>
                     </CardHeader>

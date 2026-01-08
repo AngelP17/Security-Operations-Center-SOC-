@@ -77,8 +77,8 @@ export function NetworkTraffic() {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorOutbound" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
@@ -119,7 +119,7 @@ export function NetworkTraffic() {
                   type="monotone"
                   dataKey="outbound"
                   name="Outbound"
-                  stroke="#3b82f6"
+                  stroke="#6366f1"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorOutbound)"

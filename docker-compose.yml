@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  soc-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soc-dashboard
+    ports:
+      - "5001:5001"
+    volumes:
+      # Persist database
+      - ./data:/app/data
+      # Persist OUI database
+      - ./oui.txt:/app/oui.txt
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-soc-dashboard-secret-key-2025}
+      - PYTHONUNBUFFERED=1
+    # Use host network mode to scan local network
+    # This allows the container to see your local network devices
+    network_mode: "host"
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    privileged: false
+
+  # Optional: Frontend served by Nginx (if you build React app)
+  # Uncomment if you want to serve the built React app separately
+  # soc-frontend:
+  #   image: nginx:alpine
+  #   container_name: soc-frontend
+  #   ports:
+  #     - "3000:80"
+  #   volumes:
+  #     - ./build:/usr/share/nginx/html:ro
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - soc-dashboard

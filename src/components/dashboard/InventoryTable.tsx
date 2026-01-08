@@ -212,7 +212,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                     <TableCell>
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger className="font-medium text-zinc-200 hover:text-blue-400 cursor-help">
+                          <TooltipTrigger className="font-medium text-zinc-200 hover:text-emerald-400 cursor-help">
                             {device.hostname}
                           </TooltipTrigger>
                           <TooltipContent className="bg-zinc-800 border-zinc-700 max-w-xs">
@@ -229,7 +229,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                       </TooltipProvider>
                     </TableCell>
 
-                    <TableCell className="font-mono text-blue-400">{ip}</TableCell>
+                    <TableCell className="font-mono text-zinc-400">{ip}</TableCell>
 
                     {/* MAC with Vendor Tooltip */}
                     <TableCell>
