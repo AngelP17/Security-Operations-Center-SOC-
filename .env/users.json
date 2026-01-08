@@ -1,0 +1,16 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "password_hash": "cec454d4c205646097d8e00d2a22bd14761f6b32591ca5f8e05b7e8d17b5206a",
+      "role": "admin",
+      "display_name": "Angel Pinzon"
+    },
+    {
+      "username": "monica",
+      "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "role": "viewer",
+      "display_name": "monica"
+    }
+  ]
+}
