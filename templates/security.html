@@ -207,9 +207,6 @@
                 class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm">
                 <i class="fas fa-bolt w-5 text-slate-400"></i> <span>Security Events</span>
             </a>
-            <a href="/" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm">
-                <i class="fas fa-users w-5 text-slate-400"></i> <span>IT Dashboard</span>
-            </a>
             <a href="#" onclick="switchView('settings')"
                 class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm">
                 <i class="fas fa-cog w-5 text-slate-400"></i> <span>Settings</span>
@@ -640,16 +637,38 @@
 
             showToast('Network scan initiated...', 'info');
 
-            // Simulate scan delay
-            await new Promise(r => setTimeout(r, 2000));
+            try {
+                // Call real backend scan API
+                const res = await fetch('/api/security/scan', { method: 'POST' });
+                const data = await res.json();
 
+                if (res.ok) {
+                    showToast(`Scan complete: ${data.discovered || 0} devices found on ${data.subnet || 'network'}`, 'success');
+
+                    // Log scan event
+                    await fetch('/api/security/events', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            event_type: 'network_scan',
+                            severity: 'low',
+                            description: `Network scan completed: ${data.discovered || 0} devices discovered`
+                        })
+                    });
+                } else {
+                    showToast(data.error || 'Scan failed', 'error');
+                }
+            } catch (e) {
+                console.error('Scan error:', e);
+                showToast('Network scan failed - check console for details', 'error');
+            }
+
+            // Refresh all data
             await Promise.all([loadStats(), loadInventory(), loadEvents()]);
 
             btn.disabled = false;
             icon.classList.remove('scanning');
             text.innerText = 'Scan Network';
-
-            showToast('Network scan complete', 'success');
         }
 
         function initTrafficChart() {
