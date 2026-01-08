@@ -40,23 +40,11 @@ export function Login() {
             {/* Scan Line Animation */}
             <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-[scan_3s_linear_infinite] pointer-events-none z-0"></div>
 
-            {/* Decorative HUD Elements */}
-            <div className="absolute top-8 left-8 text-emerald-900/40 text-xs font-mono hidden md:block select-none">
-                <div className="flex items-center gap-2"><div className="w-2 h-2 bg-emerald-900/40 rounded-full animate-pulse"></div> SYSTEM.READY</div>
-                <div>ENCRYPTION: ACTIVE</div>
-                <div>NODE: US-EAST-1A</div>
-            </div>
-
-            <div className="absolute bottom-8 right-8 text-emerald-900/40 text-xs font-mono text-right hidden md:block select-none">
-                <div>SOC.VERSION: 2.1.0</div>
-                <div>AUTH.PROTO: OAUTH2</div>
-            </div>
-
             <div className="w-full max-w-md z-10 relative">
                 {/* Main Card */}
-                <div className="bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-xl shadow-2xl overflow-hidden relative">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden relative">
                     {/* Header */}
-                    <div className="p-8 pb-6 text-center border-b border-zinc-800 bg-black/30 relative overflow-hidden group">
+                    <div className="p-8 pb-6 text-center border-b border-zinc-800 bg-black relative overflow-hidden group">
                         <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
 
                         <div className="w-16 h-16 bg-zinc-800 rounded-xl border border-zinc-700 mx-auto flex items-center justify-center mb-5 shadow-lg shadow-emerald-900/20 group-hover:border-emerald-500/50 group-hover:scale-105 transition-all duration-300">
