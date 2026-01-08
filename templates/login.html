@@ -4,106 +4,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - IT Operations Center</title>
+    <title>SOC Access Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        cyber: {
+                            black: '#0a0a0b',
+                            dark: '#111827',
+                            green: '#10b981',
+                            red: '#ef4444',
+                            border: '#1f2937'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        * {
-            font-family: 'Inter', sans-serif;
-        }
-
         body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            background-color: #050505;
+            background-image:
+                radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 50%),
+                linear-gradient(rgba(17, 24, 39, 1) 0%, rgba(5, 5, 5, 1) 100%);
         }
 
-        .glass-card {
-            background: rgba(30, 41, 59, 0.8);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(71, 85, 105, 0.4);
+        .grid-bg {
+            background-size: 50px 50px;
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
         }
 
-        .input-field {
-            transition: all 0.3s;
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: rgba(16, 185, 129, 0.3);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+            animation: scan 3s linear infinite;
+            pointer-events: none;
         }
 
-        .input-field:focus {
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        @keyframes scan {
+            0% {
+                top: -10%;
+                opacity: 0;
+            }
+
+            5% {
+                opacity: 1;
+            }
+
+            95% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 110%;
+                opacity: 0;
+            }
         }
     </style>
 </head>
 
-<body class="min-h-screen flex items-center justify-center p-4">
-    <div class="glass-card rounded-2xl p-8 w-full max-w-md">
-        <!-- Logo -->
-        <div class="flex items-center justify-center gap-3 mb-8">
+<body class="grid-bg min-h-screen flex items-center justify-center p-4 text-slate-200 overflow-hidden relative">
+
+    <!-- Background Decor -->
+    <div class="scan-line"></div>
+    <div class="absolute top-10 left-10 opacity-20 text-emerald-900 font-mono text-xs">
+        System.Status: ONLINE<br>
+        Port.Scan: ACTIVE<br>
+        Threat.Level: LOW
+    </div>
+    <div class="absolute bottom-10 right-10 opacity-20 text-emerald-900 font-mono text-xs text-right">
+        SOC.Version: 2.0.4<br>
+        Encryption: AES-256<br>
+        Auth.Protocol: OAUTH2
+    </div>
+
+    <!-- Login Card -->
+    <div
+        class="w-full max-w-md bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-xl shadow-2xl overflow-hidden relative z-10">
+        <!-- Header -->
+        <div class="border-b border-slate-800 p-8 text-center bg-slate-900/50 relative">
+            <div class="absolute inset-0 bg-emerald-500/5"></div>
             <div
-                class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
-                <i class="fas fa-server text-white text-xl"></i>
+                class="w-16 h-16 bg-slate-800 rounded-xl border border-slate-700 mx-auto flex items-center justify-center mb-4 shadow-lg shadow-emerald-900/20 group hover:border-emerald-500/50 transition-colors">
+                <i
+                    class="fas fa-shield-halved text-3xl text-emerald-500 group-hover:scale-110 transition-transform"></i>
             </div>
-            <div>
-                <h1 class="text-2xl font-bold text-white">IT Ops<span class="text-blue-400">Center</span></h1>
-                <p class="text-xs text-slate-500">Enterprise Dashboard</p>
+            <h1 class="text-2xl font-bold font-sans tracking-tight text-white mb-1">SOC Access</h1>
+            <p class="text-xs font-mono text-emerald-500/80 uppercase tracking-widest">Security Operations Center</p>
+        </div>
+
+        <!-- Form -->
+        <div class="p-8 space-y-6">
+            <form id="loginForm" class="space-y-5">
+                <div class="space-y-2">
+                    <label class="text-xs font-mono font-bold text-slate-500 uppercase ml-1">Identity</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i
+                                class="fas fa-user-astronaut text-slate-500 group-focus-within:text-emerald-500 transition-colors"></i>
+                        </div>
+                        <input type="text" id="username"
+                            class="block w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm placeholder-slate-600 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono transition-all"
+                            placeholder="admin">
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-xs font-mono font-bold text-slate-500 uppercase ml-1">Credentials</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i
+                                class="fas fa-key text-slate-500 group-focus-within:text-emerald-500 transition-colors"></i>
+                        </div>
+                        <input type="password" id="password"
+                            class="block w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm placeholder-slate-600 text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 font-mono transition-all"
+                            placeholder="••••••••">
+                    </div>
+                </div>
+
+                <button type="submit"
+                    class="w-full flex justify-center py-2.5 px-4 border border-emerald-600 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 focus:ring-offset-slate-900 transition-all shadow-lg shadow-emerald-900/30 font-sans hover:shadow-emerald-500/20">
+                    <i class="fas fa-fingerprint mr-2 mt-0.5"></i> Authenticate
+                </button>
+            </form>
+
+            <div id="errorMsg"
+                class="hidden p-3 rounded-lg bg-red-900/20 border border-red-900/50 text-red-200 text-xs font-mono flex items-center">
+                <i class="fas fa-triangle-exclamation mr-2 text-red-500"></i>
+                <span>Authentication Failed: Invalid Credentials</span>
             </div>
         </div>
 
-        <!-- Login Form -->
-        <form id="login-form" class="space-y-5">
-            <div>
-                <label class="block text-xs text-slate-400 uppercase tracking-wider mb-2">Username</label>
-                <input type="text" id="username"
-                    class="input-field w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                    placeholder="Enter username" required>
+        <!-- Footer check -->
+        <div
+            class="bg-slate-950 border-t border-slate-800 p-4 flex items-center justify-between text-[10px] font-mono text-slate-600">
+            <div class="flex items-center">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
+                SECURE CONNECTION
             </div>
-            <div>
-                <label class="block text-xs text-slate-400 uppercase tracking-wider mb-2">Password</label>
-                <input type="password" id="password"
-                    class="input-field w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                    placeholder="Enter password" required>
-            </div>
-
-            <!-- Error Message -->
-            <div id="error-msg"
-                class="hidden bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm"></div>
-
-            <button type="submit"
-                class="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center gap-2">
-                <i class="fas fa-sign-in-alt"></i>
-                Sign In
-            </button>
-        </form>
-
-        <p class="text-center text-slate-500 text-xs mt-6">
-            Secure access to IT ticket management
-        </p>
+            <span>ID: <span class="text-slate-500">SOC-8821</span></span>
+        </div>
     </div>
 
     <script>
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const errorEl = document.getElementById('error-msg');
-            errorEl.classList.add('hidden');
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerHTML;
+
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Verifying...';
+            btn.disabled = true;
+            btn.classList.add('opacity-75', 'cursor-not-allowed');
 
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
             try {
-                const res = await fetch('/api/login', {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                const data = await res.json();
 
-                if (res.ok) {
-                    window.location.href = '/';
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    btn.innerHTML = '<i class="fas fa-check mr-2"></i> Access Granted';
+                    btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+                    btn.classList.add('bg-emerald-500');
+                    setTimeout(() => window.location.href = '/security', 500);
                 } else {
-                    errorEl.textContent = data.error || 'Login failed';
-                    errorEl.classList.remove('hidden');
+                    throw new Error('Invalid credentials');
                 }
-            } catch (e) {
-                errorEl.textContent = 'Network error';
-                errorEl.classList.remove('hidden');
+            } catch (err) {
+                document.getElementById('errorMsg').classList.remove('hidden');
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+                // Shake animation
+                const card = document.querySelector('.max-w-md');
+                card.classList.add('animate-[shake_0.5s_ease-in-out]');
+                setTimeout(() => card.classList.remove('animate-[shake_0.5s_ease-in-out]'), 500);
             }
         });
     </script>
