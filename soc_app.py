@@ -14,8 +14,18 @@ import platform
 import urllib.request
 from functools import wraps
 from flask import Flask, render_template, jsonify, request, session, redirect
-from datetime import datetime
+from datetime import datetime, timedelta
 import random
+import threading
+import time
+
+# Try to import psutil for real network monitoring
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    print("[WARNING] psutil not installed - using simulated traffic data")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'soc-dashboard-secret-key-2025')
@@ -109,7 +119,19 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
+
+    # Traffic history table for real network monitoring
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS traffic_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            bytes_sent INTEGER DEFAULT 0,
+            bytes_recv INTEGER DEFAULT 0,
+            packets_sent INTEGER DEFAULT 0,
+            packets_recv INTEGER DEFAULT 0
+        )
+    ''')
+
     conn.commit()
     
     # Check if users exist, if not add defaults
@@ -700,31 +722,115 @@ def api_network_scan():
 @app.route('/api/traffic')
 @login_required
 def api_traffic_data():
-    """Return network traffic data for charts."""
-    # Generate realistic traffic pattern (in production, this would come from SNMP or packet capture)
-    import math
+    """Return real network traffic data for charts."""
+    conn = get_db()
+    cur = conn.cursor()
+
+    # Get traffic data from the last 24 hours, grouped by hour
+    cur.execute('''
+        SELECT
+            strftime('%H', timestamp) as hour,
+            SUM(bytes_recv) as total_recv,
+            SUM(bytes_sent) as total_sent
+        FROM traffic_history
+        WHERE timestamp >= datetime('now', '-24 hours')
+        GROUP BY strftime('%H', timestamp)
+        ORDER BY hour
+    ''')
+
+    rows = cur.fetchall()
+    conn.close()
+
+    # Build 24-hour data structure
     labels = [f"{str(h).zfill(2)}:00" for h in range(24)]
-    current_hour = datetime.now().hour
-    
-    # Create realistic traffic patterns with peaks and valleys
-    inbound = []
-    outbound = []
-    for h in range(24):
-        # Base traffic with business hours pattern
-        base = 200 if 8 <= h <= 18 else 100
-        
-        # Add variation
-        variation = random.randint(-50, 50)
-        peak_modifier = 1.5 if h in [9, 14, 16] else 1.0  # Peak hours
-        
-        inbound.append(int((base + variation) * peak_modifier))
-        outbound.append(int((base + variation + random.randint(-30, 30)) * peak_modifier * 1.2))
-    
+    traffic_by_hour = {f"{str(h).zfill(2)}": {'recv': 0, 'sent': 0} for h in range(24)}
+
+    # Fill in actual data
+    for row in rows:
+        hour = row['hour']
+        if hour in traffic_by_hour:
+            # Convert bytes to MB for display
+            traffic_by_hour[hour]['recv'] = int(row['total_recv'] / (1024 * 1024)) if row['total_recv'] else 0
+            traffic_by_hour[hour]['sent'] = int(row['total_sent'] / (1024 * 1024)) if row['total_sent'] else 0
+
+    inbound = [traffic_by_hour[f"{str(h).zfill(2)}"]['recv'] for h in range(24)]
+    outbound = [traffic_by_hour[f"{str(h).zfill(2)}"]['sent'] for h in range(24)]
+
     return jsonify({
         'labels': labels,
         'inbound': inbound,
         'outbound': outbound
     })
+
+
+# --- TRAFFIC MONITORING ---
+# Store previous network stats for calculating deltas
+_prev_net_stats = {'bytes_sent': 0, 'bytes_recv': 0, 'packets_sent': 0, 'packets_recv': 0}
+_traffic_collector_running = False
+
+def collect_traffic_data():
+    """Collect real network traffic data using psutil."""
+    global _prev_net_stats, _traffic_collector_running
+
+    if not PSUTIL_AVAILABLE:
+        return
+
+    _traffic_collector_running = True
+    print("[TRAFFIC] Starting real-time traffic monitoring...")
+
+    # Initialize with current stats
+    net_io = psutil.net_io_counters()
+    _prev_net_stats = {
+        'bytes_sent': net_io.bytes_sent,
+        'bytes_recv': net_io.bytes_recv,
+        'packets_sent': net_io.packets_sent,
+        'packets_recv': net_io.packets_recv
+    }
+
+    while _traffic_collector_running:
+        try:
+            time.sleep(60)  # Collect every minute
+
+            net_io = psutil.net_io_counters()
+
+            # Calculate delta since last reading
+            delta_sent = net_io.bytes_sent - _prev_net_stats['bytes_sent']
+            delta_recv = net_io.bytes_recv - _prev_net_stats['bytes_recv']
+            delta_packets_sent = net_io.packets_sent - _prev_net_stats['packets_sent']
+            delta_packets_recv = net_io.packets_recv - _prev_net_stats['packets_recv']
+
+            # Update previous stats
+            _prev_net_stats = {
+                'bytes_sent': net_io.bytes_sent,
+                'bytes_recv': net_io.bytes_recv,
+                'packets_sent': net_io.packets_sent,
+                'packets_recv': net_io.packets_recv
+            }
+
+            # Store in database
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute('''
+                INSERT INTO traffic_history (bytes_sent, bytes_recv, packets_sent, packets_recv)
+                VALUES (?, ?, ?, ?)
+            ''', (delta_sent, delta_recv, delta_packets_sent, delta_packets_recv))
+            conn.commit()
+
+            # Clean up old data (keep only last 7 days)
+            cur.execute("DELETE FROM traffic_history WHERE timestamp < datetime('now', '-7 days')")
+            conn.commit()
+            conn.close()
+
+        except Exception as e:
+            print(f"[TRAFFIC] Error collecting data: {e}")
+
+def start_traffic_collector():
+    """Start the traffic collector in a background thread."""
+    if PSUTIL_AVAILABLE:
+        traffic_thread = threading.Thread(target=collect_traffic_data, daemon=True)
+        traffic_thread.start()
+    else:
+        print("[TRAFFIC] psutil not available - traffic monitoring disabled")
 
 # Enable CORS for React frontend
 @app.after_request
@@ -743,6 +849,8 @@ if __name__ == '__main__':
     init_db()
     print("\n[INIT] Loading MAC vendor database...")
     load_oui_database()
+    print("\n[INIT] Starting traffic monitor...")
+    start_traffic_collector()
     print("\n[START] Server starting...")
     print(f" Open browser to: http://127.0.0.1:5001")
     print(" Login: admin / admin123")
