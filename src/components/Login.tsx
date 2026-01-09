@@ -5,7 +5,7 @@ import { Shield, Lock, User, AlertTriangle, Fingerprint, Activity, Terminal } fr
 export function Login() {
     const { login, register, error: authError, loading } = useAuth();
     const [isRegisterMode, setIsRegisterMode] = useState(false);
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [displayName, setDisplayName] = useState('');
 
@@ -13,9 +13,9 @@ export function Login() {
         e.preventDefault();
         try {
             if (isRegisterMode) {
-                await register(username, password, displayName, 'viewer');
+                await register(email, password, displayName, 'viewer');
             } else {
-                await login(username, password);
+                await login(email, password);
             }
         } catch {
             // Error handled by AuthContext
@@ -79,15 +79,15 @@ export function Login() {
                             )}
 
                             <div className="space-y-2">
-                                <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase ml-1">Username</label>
+                                <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase ml-1">Identity</label>
                                 <div className="relative group">
                                     <Terminal className="absolute left-3 top-3 w-4 h-4 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
                                     <input
-                                        type="text"
+                                        type="email"
                                         className="w-full bg-black border border-zinc-700 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-mono"
-                                        placeholder="admin"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
+                                        placeholder="agent@soc.internal"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
                                         required
                                     />
                                 </div>

@@ -1,21 +1,33 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import {
+    User,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase-config';
 
 // Role types for RBAC
 export type UserRole = 'admin' | 'analyst' | 'viewer';
 
 export interface UserProfile {
-    username: string;
+    uid: string;
+    email: string;
     displayName: string;
     role: UserRole;
+    createdAt: Date;
+    lastLogin: Date;
 }
 
 interface AuthContextType {
-    user: UserProfile | null;
+    user: User | null;
     userProfile: UserProfile | null;
     loading: boolean;
     error: string | null;
-    login: (username: string, password: string) => Promise<void>;
-    register: (username: string, password: string, displayName: string, role?: UserRole) => Promise<void>;
+    login: (email: string, password: string) => Promise<void>;
+    register: (email: string, password: string, displayName: string, role?: UserRole) => Promise<void>;
     logout: () => Promise<void>;
     isAdmin: boolean;
     isAnalyst: boolean;
@@ -26,109 +38,134 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<UserProfile | null>(null);
+    const [user, setUser] = useState<User | null>(null);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Check if user is already logged in on mount
-    useEffect(() => {
-        checkAuth();
-    }, []);
-
-    const checkAuth = async () => {
+    // Fetch user profile from Firestore
+    const fetchUserProfile = async (uid: string): Promise<UserProfile | null> => {
         try {
-            const response = await fetch('/api/me', {
-                credentials: 'include'
-            });
-            if (response.ok) {
-                const userData = await response.json();
-                const profile: UserProfile = {
-                    username: userData.username,
-                    displayName: userData.display_name || userData.username,
-                    role: userData.role as UserRole
-                };
-                setUser(profile);
-            } else {
-                setUser(null);
+            const userDoc = await getDoc(doc(db, 'users', uid));
+            if (userDoc.exists()) {
+                return userDoc.data() as UserProfile;
             }
+            return null;
         } catch (err) {
-            console.error('Auth check failed:', err);
-            setUser(null);
-        } finally {
-            setLoading(false);
+            console.error('Error fetching user profile:', err);
+            return null;
         }
     };
 
-    // Login with username/password via Flask backend
-    const login = async (username: string, password: string) => {
+    // Listen to auth state changes
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            setUser(firebaseUser);
+
+            if (firebaseUser) {
+                const profile = await fetchUserProfile(firebaseUser.uid);
+                setUserProfile(profile);
+
+                // Update last login
+                if (profile) {
+                    await setDoc(doc(db, 'users', firebaseUser.uid), {
+                        ...profile,
+                        lastLogin: new Date()
+                    }, { merge: true });
+                } else {
+                    // Profile missing (e.g. created before DB existed). Create default profile.
+                    const newProfile: UserProfile = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email || '',
+                        displayName: firebaseUser.displayName || 'Agent',
+                        role: 'admin', // Default to admin for recovery/first user
+                        createdAt: new Date(),
+                        lastLogin: new Date()
+                    };
+                    try {
+                        await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
+                        setUserProfile(newProfile);
+                        console.log("Recovered missing profile for user");
+                    } catch (e) {
+                        console.error("Failed to recover profile", e);
+                    }
+                }
+            } else {
+                setUserProfile(null);
+            }
+
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    // Login with email/password
+    const login = async (email: string, password: string) => {
         setError(null);
         setLoading(true);
         try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Login failed');
-            }
-
-            const profile: UserProfile = {
-                username: data.user.username,
-                displayName: data.user.display_name || data.user.username,
-                role: data.user.role as UserRole
-            };
-            setUser(profile);
+            await signInWithEmailAndPassword(auth, email, password);
         } catch (err: any) {
-            const errorMessage = err.message || 'Login failed';
-            setError(errorMessage);
+            setError(err.message || 'Login failed');
             throw err;
         } finally {
             setLoading(false);
         }
     };
 
-    // Register new user (placeholder - Flask backend doesn't have registration endpoint)
+    // Register new user
     const register = async (
-        username: string,
+        email: string,
         password: string,
         displayName: string,
         role: UserRole = 'viewer'
     ) => {
         setError(null);
-        setError('Registration is not available. Please contact an administrator.');
-        throw new Error('Registration is not available');
+        setLoading(true);
+        try {
+            const result = await createUserWithEmailAndPassword(auth, email, password);
+
+            // Create user profile in Firestore
+            const userProfile: UserProfile = {
+                uid: result.user.uid,
+                email,
+                displayName,
+                role,
+                createdAt: new Date(),
+                lastLogin: new Date()
+            };
+
+            await setDoc(doc(db, 'users', result.user.uid), userProfile);
+            setUserProfile(userProfile);
+        } catch (err: any) {
+            setError(err.message || 'Registration failed');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Logout
     const logout = async () => {
         try {
-            await fetch('/api/logout', {
-                method: 'POST',
-                credentials: 'include'
-            });
-            setUser(null);
+            await signOut(auth);
+            setUserProfile(null);
         } catch (err: any) {
             setError(err.message || 'Logout failed');
         }
     };
 
     // Role-based permissions
-    const isAdmin = user?.role === 'admin';
-    const isAnalyst = user?.role === 'analyst';
+    const isAdmin = userProfile?.role === 'admin';
+    const isAnalyst = userProfile?.role === 'analyst';
     const canWrite = isAdmin || isAnalyst;
     const canDelete = isAdmin;
 
     return (
         <AuthContext.Provider value={{
             user,
-            userProfile: user,
+            userProfile,
             loading,
             error,
             login,
