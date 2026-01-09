@@ -50,10 +50,14 @@
       "devDependencies": {
             "@types/node": "^20.10.0",
             "@vitejs/plugin-react-swc": "^3.10.2",
+            "concurrently": "^8.2.2",
             "vite": "6.3.5"
       },
       "scripts": {
             "dev": "vite",
-            "build": "vite build"
+            "build": "vite build",
+            "backend": "python3 soc_app.py",
+            "start": "concurrently --kill-others \"npm run backend\" \"npm run dev\"",
+            "start:all": "concurrently --kill-others --names \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"python3 soc_app.py\" \"vite\""
       }
 }
