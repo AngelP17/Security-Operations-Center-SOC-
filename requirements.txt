@@ -2,3 +2,4 @@ Flask>=2.0.0
 psycopg2-binary
 openpyxl
 python-dotenv
+psutil>=5.9.0
