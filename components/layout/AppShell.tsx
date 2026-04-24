@@ -2,28 +2,56 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronDown, Play, Search, Shield, UserCircle } from "lucide-react";
+import { Bell, ChevronDown, Gauge, Factory, AlertTriangle, Network, FileClock, Activity, ShieldCheck, Search, Play, UserCircle } from "lucide-react";
 import { motion } from "framer-motion";
-import { navGroups } from "@/lib/security-data";
 import { useForgeStore } from "@/lib/store";
-import { runDemoScan } from "@/lib/api";
-import { useState } from "react";
+import { useRunDemoScan } from "@/lib/hooks/use-command-center";
+import { useCommandCenter } from "@/lib/hooks/use-command-center";
+
+const navGroups = [
+  {
+    label: "Operations",
+    items: [
+      { href: "/command", label: "Command", icon: Gauge },
+      { href: "/assets", label: "Assets", icon: Factory },
+      { href: "/incidents", label: "Incidents", icon: AlertTriangle },
+    ],
+  },
+  {
+    label: "Investigation",
+    items: [
+      { href: "/topology", label: "Topology", icon: Network },
+    ],
+  },
+  {
+    label: "Output",
+    items: [
+      { href: "/reports", label: "Reports", icon: Activity },
+      { href: "/settings", label: "Settings", icon: ShieldCheck },
+    ],
+  },
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { labMode, setLabMode } = useForgeStore();
-  const [scanStatus, setScanStatus] = useState("Safe demo scan completed 2m ago");
+  const demoScan = useRunDemoScan();
+  const { data: commandData } = useCommandCenter();
+
+  const lastScan = commandData?.kpis?.last_scan_at;
+  const scanStatus = lastScan
+    ? `Last scan ${new Date(lastScan).toLocaleTimeString()}`
+    : "No scan data";
 
   async function handleScan() {
-    const result = await runDemoScan();
-    setScanStatus(`${result.mode} complete: ${result.discovered} assets`);
+    demoScan.mutate();
   }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark"><Shield size={20} /></div>
+          <div className="brand-mark"><ShieldCheck size={20} /></div>
           <div className="brand-text">
             <strong>ForgeSentinel</strong>
             <div className="muted" style={{ fontSize: 11 }}>Industrial Command UI</div>
@@ -33,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="nav-section" key={group.label}>
             <div className="nav-label">{group.label}</div>
             {group.items.map((item) => {
-              const active = pathname === item.href || (item.href !== "/command" && pathname.startsWith(item.href.split("/")[1] ? `/${item.href.split("/")[1]}` : item.href));
+              const active = pathname === item.href || (item.href !== "/command" && pathname.startsWith(item.href));
               const Icon = item.icon;
               return (
                 <Link className={`nav-link ${active ? "active" : ""}`} href={item.href} key={item.href}>
@@ -57,9 +85,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {labMode ? "Lab mode opt-in" : "Demo mode safe"}
             </button>
             <span className="chip">{scanStatus}</span>
-            <button className="btn primary" onClick={handleScan}><Play size={15} /> Run scan</button>
+            <button className="btn primary" onClick={handleScan} disabled={demoScan.isPending}>
+              <Play size={15} /> {demoScan.isPending ? "Scanning..." : "Run scan"}
+            </button>
             <button className="btn" aria-label="Notifications"><Bell size={15} /></button>
-            <span className="chip"><UserCircle size={15} /> Analyst A. Pinzon</span>
+            <span className="chip"><UserCircle size={15} /> Analyst</span>
           </div>
         </header>
         <main className="workspace">

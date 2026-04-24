@@ -1,10 +1,11 @@
-import type { RiskLevel } from "@/lib/security-data";
-import { riskClass } from "@/lib/security-data";
+import type { RiskLevel } from "@/lib/types";
+import { riskClass } from "@/lib/types";
 
-export function RiskBadge({ level, score }: { level: RiskLevel; score?: number }) {
+export function RiskBadge({ level, score }: { level?: RiskLevel | string; score?: number }) {
   return (
-    <span className={`risk-badge ${riskClass(level)}`}>
-      {score ? `${score} ` : null}{level}
+    <span className={`risk-badge ${riskClass(level as string)}`}>
+      {score !== undefined ? `${score} ` : null}
+      {level || "unknown"}
     </span>
   );
 }

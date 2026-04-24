@@ -1,9 +1,32 @@
+"use client";
+
 import { FileText } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RiskBadge } from "@/components/shared/RiskBadge";
-import { incidents } from "@/lib/security-data";
+import { RouteState } from "@/components/shared/RouteState";
+import { useIncidents } from "@/lib/hooks/use-incidents";
 
 export default function ReportsPage() {
+  const { data, isLoading, error } = useIncidents();
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <RouteState type="loading" title="Loading reports..." />
+      </AppShell>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppShell>
+        <RouteState type="error" title="Failed to load reports" />
+      </AppShell>
+    );
+  }
+
+  const incidents = data?.items || [];
+
   return (
     <AppShell>
       <div className="page-head">
@@ -18,12 +41,16 @@ export default function ReportsPage() {
         <section className="panel">
           <div className="eyebrow">Report Queue</div>
           <div className="metric-list" style={{ marginTop: 14 }}>
-            {incidents.map((incident) => (
-              <div className="metric-row" key={incident.id}>
-                <span><strong>{incident.id}</strong><br /><span className="muted">{incident.title}</span></span>
-                <RiskBadge level={incident.severity} score={incident.risk} />
-              </div>
-            ))}
+            {incidents.length === 0 ? (
+              <p className="muted">No incidents available for reporting.</p>
+            ) : (
+              incidents.map((incident: any) => (
+                <div className="metric-row" key={incident.id}>
+                  <span><strong>{incident.incident_uid}</strong><br /><span className="muted">{incident.title}</span></span>
+                  <RiskBadge level={incident.severity} score={incident.risk_score} />
+                </div>
+              ))
+            )}
           </div>
         </section>
         <aside className="right-rail">
