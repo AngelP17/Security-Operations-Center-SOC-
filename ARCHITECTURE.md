@@ -1,137 +1,67 @@
-# Architecture Overview
+# ForgeSentinel Architecture
 
-This document provides a high-level architecture overview of the Integrate Security Operations Center (SOC) Dashboard.
+ForgeSentinel adapts the Aether OpsCenter pattern from tickets into an operational security decision system for manufacturing networks.
 
-## System Architecture
+## Domain Translation
 
-```mermaid
-graph TB
-    subgraph Client["Frontend (React + TypeScript)"]
-        UI[UI Components]
-        Login[Login Component]
-        Dashboard[Dashboard Component]
-        Sidebar[AppSidebar]
-        Charts[Analytics Charts]
-    end
+| Aether OpsCenter Concept | ForgeSentinel Concept |
+| --- | --- |
+| Tickets | Assets |
+| Ticket events | Security events |
+| Priority decisions | Risk decisions |
+| Ticket recommendations | Security response recommendations |
+| Incident clusters | Correlated security incidents |
+| Ticket replay | Asset / incident audit replay |
 
-    subgraph Services["Services Layer"]
-        Auth[Authentication Service]
-        API[API Service]
-        Firebase[Firebase Config]
-    end
+## Product Model
 
-    subgraph Backend["Backend (Python Flask)"]
-        FlaskApp[Flask Application]
-        SOCApp[SOC Application Logic]
-        DB[(SQLite Database)]
-    end
+ForgeSentinel centers the analyst workflow on durable security objects:
 
-    subgraph Infrastructure["Infrastructure"]
-        Docker[Docker Container]
-        Vite[Vite Dev Server]
-    end
+- **Asset**: hostname, IP, MAC, segment, authorization state, owner, open ports, risk score, evidence, recommendations, and audit history.
+- **Security Event**: scanner observations, identity changes, exposure detections, risk decisions, recommendation generation, and analyst actions.
+- **Incident**: correlated security events and affected assets with status, severity, confidence, timeline, notes, and response stack.
+- **Replay Step**: append-only trace of how raw observations become normalized assets, risk decisions, incidents, and recommendations.
 
-    UI --> Dashboard
-    Login --> Auth
-    Dashboard --> Sidebar
-    Dashboard --> Charts
-    Dashboard --> API
-    Auth --> Firebase
-    API --> FlaskApp
-    FlaskApp --> SOCApp
-    SOCApp --> DB
-    Docker --> FlaskApp
-    Vite --> UI
-```
-
-## Component Architecture
+## UI Architecture
 
 ```mermaid
-flowchart LR
-    subgraph Pages["Pages"]
-        LoginPage[Login]
-        DashboardPage[Dashboard]
-    end
+graph TD
+    App[Next.js 14 App Router] --> Shell[Sentinel Industrial Command UI Shell]
+    Shell --> Command[/command]
+    Shell --> Assets[/assets]
+    Shell --> Incidents[/incidents and /incidents/:id]
+    Shell --> Topology[/topology]
+    Shell --> Replay[/replay/:entityId]
+    Shell --> Reports[/reports]
+    Shell --> Settings[/settings]
 
-    subgraph Layout["Layout Components"]
-        AppSidebar[AppSidebar]
-        Breadcrumb[Breadcrumb]
-    end
+    Data[lib/security-data.ts] --> Command
+    Data --> Assets
+    Data --> Incidents
+    Data --> Topology
+    Data --> Replay
 
-    subgraph Dashboard["Dashboard Components"]
-        AlertList[Alert List]
-        PerformanceCards[Performance Cards]
-        NetworkView[Network View]
-        Analytics[Analytics Charts]
-        SecurityEvents[Security Events]
-        ThreatMonitor[Threat Monitor]
-    end
+    Store[Zustand UI Store] --> Drawer[Asset Detail Drawer]
+    Assets --> Drawer
+    Command --> Drawer
+    Topology --> Drawer
 
-    subgraph UI["UI Library (Shadcn/ui)"]
-        Card[Card]
-        Button[Button]
-        Input[Input]
-        Badge[Badge]
-        ScrollArea[ScrollArea]
-        Chart[Chart]
-    end
-
-    LoginPage --> DashboardPage
-    DashboardPage --> AppSidebar
-    DashboardPage --> Dashboard
-    Dashboard --> UI
+    API[lib/api.ts] --> SafeDemo[Safe demo scan]
+    API --> LabMode[Opt-in lab scan gate]
 ```
 
-## Technology Stack
+## Safety Model
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, TypeScript, Vite |
-| UI Components | Shadcn/ui, Radix UI, Lucide Icons |
-| Styling | Tailwind CSS |
-| Charts | Recharts |
-| Backend | Python Flask |
-| Database | SQLite |
-| Auth | Firebase |
-| Deployment | Docker, Docker Compose |
+Safe demo scanning is the default operating state and uses local scenario data. Real scanning is represented as lab mode and requires explicit opt-in before `runLabScan` will issue an API request.
 
-## Data Flow
+This design prevents a portfolio/demo environment from accidentally scanning a real network while still documenting how a production scanner integration would be gated.
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant React as React App
-    participant Auth as Firebase Auth
-    participant Flask as Flask Backend
-    participant DB as SQLite DB
+## Design System
 
-    User->>React: Login
-    React->>Auth: Authenticate
-    Auth-->>React: Auth Token
-    React->>Flask: API Request + Token
-    Flask->>DB: Query Data
-    DB-->>Flask: Results
-    Flask-->>React: JSON Response
-    React-->>User: Render Dashboard
-```
+**Sentinel Industrial Command UI** uses graphite, slate, off-white type, amber risk accents, red critical accents, green healthy accents, and restrained cyan highlights. The layout is a three-zone command system:
 
-## Directory Structure
+1. Left navigation grouped by Operations, Investigation, and Output.
+2. Main operational workspace.
+3. Right rail or drawer for context, recommendations, and audit evidence.
 
-```
-├── src/
-│   ├── App.tsx           # Main application component
-│   ├── main.tsx          # Entry point
-│   ├── components/
-│   │   ├── Login.tsx     # Authentication component
-│   │   ├── dashboard/    # Dashboard-specific components
-│   │   ├── layout/       # Layout components (sidebar)
-│   │   └── ui/           # Shadcn/ui components
-│   ├── contexts/         # React contexts
-│   ├── services/         # API and service layers
-│   └── types/            # TypeScript type definitions
-├── app.py                # Flask backend
-├── soc_app.py            # SOC application logic
-├── templates/            # HTML templates
-├── Dockerfile            # Container configuration
-└── docker-compose.yml    # Multi-container setup
-```
+The interface prioritizes dense readable tables, risk-first queues, object-centric asset biographies, decision writeback, investigation timelines, graph context, and auditable action loops.

@@ -1,95 +1,55 @@
-# Integrate Security Operations Center
+# ForgeSentinel
 
-A comprehensive Security Operations Center (SOC) Dashboard for monitoring, analyzing, and responding to security events in real-time.
+ForgeSentinel is a manufacturing-focused SOC and Asset Risk Intelligence Platform. It discovers network assets, detects unauthorized devices and risky exposed services, correlates security events, prioritizes response actions, and preserves an auditable incident history for OT and manufacturing environments.
 
-## Architecture Overview
+The product is framed around the **Sentinel Industrial Command UI**, a premium dark command-center interface for senior analysts and OT security teams.
 
-```mermaid
-graph TB
-    subgraph Frontend["Frontend (React + TypeScript)"]
-        UI[UI Components]
-        Dashboard[Dashboard]
-        Auth[Authentication]
-    end
+## Core Workflows
 
-    subgraph Backend["Backend (Python Flask)"]
-        API[REST API]
-        Logic[SOC Logic]
-        DB[(SQLite)]
-    end
+- **Command Center**: `/command` is the flagship SOC surface with KPI cards, prioritized risk queue, active incident focus, live security events, exposure charts, and scan status.
+- **Asset Intelligence**: `/assets` replaces ticket queues with object-centric asset workflows, asset biographies, risk decisions, triggered rules, ports, evidence, recommendations, and audit trails.
+- **Incident Workbench**: `/incidents/[incidentId]` replaces ticket events with correlated security incidents, evidence timelines, decision traces, analyst notes, and ranked response recommendations.
+- **Topology**: `/topology` visualizes assets by segment using React Flow with risk rings and clickable asset details.
+- **Audit Replay**: `/replay/[entityId]` replaces ticket replay with asset and incident audit replay, including expandable raw JSON for explainability.
+- **Reports and Settings**: `/reports` and `/settings` support evidence packages, response governance, safe demo scanning, and opt-in lab scanning controls.
 
-    subgraph Deploy["Deployment"]
-        Docker[Docker]
-        Vite[Vite]
-    end
+## Security Posture
 
-    UI --> Dashboard
-    Dashboard --> API
-    Auth --> API
-    API --> Logic
-    Logic --> DB
-    Docker --> API
-    Vite --> UI
-```
+ForgeSentinel defaults to **safe demo scanning**. Demo scans use local scenario data and do not touch real networks.
 
-## Features
+Real scanning is modeled only as an **explicit opt-in lab mode**. The UI makes this state visible in the topbar and settings screen, and the API wrapper rejects lab scans unless opt-in is provided.
 
-- 🔐 **Authentication** - Secure Firebase-based login
-- 📊 **Real-time Analytics** - Live security metrics and charts
-- 🚨 **Alert Management** - Track and respond to security alerts
-- 🌐 **Network Monitoring** - Scan and monitor network devices
-- 📈 **Threat Intelligence** - Advanced threat detection and analysis
-- 🎨 **Modern UI** - Built with Shadcn/ui and Tailwind CSS
+Demo scenario:
+
+> Unknown contractor laptop appeared on production segment and exposed SMB/RDP.
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| Frontend | React 18, TypeScript, Vite |
-| UI | Shadcn/ui, Tailwind CSS |
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js 14 App Router, React 18, TypeScript |
+| Styling | Tailwind-compatible design tokens plus production CSS |
+| State | Zustand |
+| Tables | TanStack Table |
 | Charts | Recharts |
-| Backend | Python Flask |
-| Database | SQLite |
-| Auth | Firebase |
-| Deploy | Docker |
+| Topology | React Flow |
+| Motion | Framer Motion |
+| Icons | Lucide React |
+| API Wrapper | Axios in `lib/api.ts` |
 
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- Python 3.10+
-- Docker (optional)
-
-### Installation
+## Development
 
 ```bash
-# Install frontend dependencies
 npm install
-
-# Install backend dependencies
-pip install -r requirements.txt
-```
-
-### Development
-
-```bash
-# Start the development server
 npm run dev
 ```
 
-### Docker Deployment
+Open [http://localhost:3000/command](http://localhost:3000/command).
+
+## Production Build
 
 ```bash
-# Build and run with Docker Compose
-docker-compose up --build
+npm run build
 ```
 
-## Documentation
-
-- [Architecture Details](./ARCHITECTURE.md)
-- [Docker Deployment Guide](./DOCKER_DEPLOYMENT.md)
-
-## Original Design
-
-The original project design is available at [Figma](https://www.figma.com/design/KOpjY9jvT4V6cByOKVqi4w/Integrate-Security-Operations-Center).
+The legacy Vite implementation remains in `src/` for reference, while the production ForgeSentinel UI now lives in the Next app router under `app/`, `components/`, and `lib/`.
