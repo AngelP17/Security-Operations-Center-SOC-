@@ -1,24 +1,29 @@
+"""Scan service for ForgeSentinel.
+
+Orchestrates demo scans and lab scan job creation.
+Lab scans run asynchronously via the background worker.
+"""
+
 import datetime
-import hashlib
 import ipaddress
 import json
+import threading
 import uuid
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from apps.api.config import settings
-from apps.api.models.scan import ScanRun, ScanObservation
+from apps.api.models.scan import ScanRun, ScanObservation, ScanAuthorizationScope
 from apps.api.models.asset import Asset
-from apps.api.models.event import SecurityEvent
 from apps.api.models.risk import RiskDecision
-from apps.api.models.audit import AuditRecord
 from apps.api.services.asset_service import asset_service
 from apps.api.services.event_service import event_service
 from apps.api.services.risk_engine import risk_engine
 from apps.api.services.correlation_engine import correlation_engine
 from apps.api.services.replay_service import replay_service
-from apps.api.services.network_scanner import scan_network_range, DEFAULT_SCAN_PORTS
+from apps.api.services.scan_profiles import get_profile, list_profiles
+from apps.api.services.scan_worker import scan_worker
 
 
 PORT_SERVICE_MAP = {
@@ -122,6 +127,9 @@ def _build_port_info(port_numbers: list[int]) -> list[dict]:
 
 
 class ScanService:
+    def list_scan_profiles(self) -> list[dict]:
+        return list_profiles()
+
     def run_demo_scan(self, db: Session) -> ScanRun:
         now = datetime.datetime.utcnow()
         scan_uid = f"scan-demo-{now.strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -130,8 +138,9 @@ class ScanService:
             scan_uid=scan_uid,
             mode="demo",
             target_cidr="demo",
+            profile="demo",
             started_at=now,
-            status="running",
+            status="completed",
             initiated_by="system",
             safety_status="safe",
         )
@@ -271,8 +280,8 @@ class ScanService:
         scan_run.assets_discovered = assets_discovered
         scan_run.observations_created = observations_created
         scan_run.events_created = events_created
-        scan_run.status = "completed"
         scan_run.completed_at = completed_at
+        scan_run.progress_percent = 100
         db.commit()
         db.refresh(scan_run)
 
@@ -292,13 +301,16 @@ class ScanService:
 
         return scan_run
 
-    def run_lab_scan(self, db: Session, target_cidr: str) -> ScanRun:
+    def run_lab_scan(
+        self, db: Session, target_cidr: str, profile: str = "deep_private"
+    ) -> ScanRun:
         if not settings.REAL_SCAN_ENABLED:
             raise HTTPException(
                 status_code=403,
                 detail="Real network scanning is disabled. Set REAL_SCAN_ENABLED=true to enable.",
             )
 
+        # Validate CIDR
         try:
             network = ipaddress.ip_network(target_cidr, strict=False)
         except ValueError:
@@ -307,6 +319,7 @@ class ScanService:
                 detail=f"Invalid CIDR notation: {target_cidr}",
             )
 
+        # Private range check
         private_ranges = [
             ipaddress.ip_network("10.0.0.0/8"),
             ipaddress.ip_network("172.16.0.0/12"),
@@ -319,6 +332,7 @@ class ScanService:
                 detail="Only private network ranges are allowed for scanning.",
             )
 
+        # Allowed CIDR check
         allowed_cidrs = [c.strip() for c in settings.SCAN_ALLOWED_CIDRS.split(",")]
         cidr_allowed = False
         for allowed in allowed_cidrs:
@@ -335,6 +349,24 @@ class ScanService:
                 detail=f"Target CIDR {target_cidr} is not in the allowed scan ranges.",
             )
 
+        # Validate profile
+        scan_profile = get_profile(profile)
+        if not scan_profile:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown scan profile: {profile}. Available: {[p['name'] for p in list_profiles()]}",
+            )
+
+        # Check host count against profile limit
+        total_hosts = len(list(network.hosts()))
+        max_hosts = min(scan_profile.max_hosts, settings.SCAN_MAX_HOSTS)
+        if total_hosts > max_hosts:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Target range {total_hosts} hosts exceeds max {max_hosts} for profile '{profile}'",
+            )
+
+        # Create scan job record
         now = datetime.datetime.utcnow()
         scan_uid = f"scan-lab-{now.strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
@@ -342,10 +374,12 @@ class ScanService:
             scan_uid=scan_uid,
             mode="lab",
             target_cidr=target_cidr,
+            profile=profile,
             started_at=now,
-            status="running",
+            status="queued",
             initiated_by="analyst",
             safety_status="safe",
+            progress_percent=0,
         )
         db.add(scan_run)
         db.flush()
@@ -354,178 +388,68 @@ class ScanService:
             db,
             entity_type="scan",
             entity_id=scan_run.id,
-            event_type="scan_started",
+            event_type="scan_queued",
             actor_type="analyst",
             actor_id="manual",
-            payload={"mode": "lab", "target_cidr": target_cidr},
+            payload={"mode": "lab", "target_cidr": target_cidr, "profile": profile},
         )
 
-        assets_discovered = 0
-        observations_created = 0
-        events_created = 0
-
-        # --- REAL TCP CONNECT SCANNING ---
-        scan_results = scan_network_range(
-            network,
-            ports=DEFAULT_SCAN_PORTS,
-            max_hosts=30,
-            host_workers=20,
+        # Start background worker
+        thread = threading.Thread(
+            target=scan_worker.execute_scan,
+            args=(scan_run.id, target_cidr, profile),
+            daemon=True,
         )
-
-        for result in scan_results:
-            port_info = _build_port_info(result["open_ports"])
-
-            obs = ScanObservation(
-                scan_run_id=scan_run.id,
-                ip_address=result["ip_address"],
-                hostname=result["hostname"],
-                mac_address=result["mac_address"],
-                vendor=result["vendor"],
-                open_ports_json=json.dumps(port_info),
-                raw_payload_json=json.dumps(
-                    {
-                        "scan_type": "tcp_connect",
-                        "ports_scanned": len(DEFAULT_SCAN_PORTS),
-                        "ports_open": len(result["open_ports"]),
-                        "vendor_detected": result["vendor"],
-                        "mac_detected": result["mac_address"] is not None,
-                    }
-                ),
-            )
-            db.add(obs)
-            db.flush()
-            observations_created += 1
-
-            # Determine segment heuristically
-            segment = "Unknown"
-            if result["ip_address"].startswith("192.168."):
-                segment = "Production"
-            elif result["ip_address"].startswith("10.20."):
-                segment = "Servers"
-            elif result["ip_address"].startswith("10."):
-                segment = "Corporate"
-
-            asset = asset_service.upsert_asset(
-                db,
-                {
-                    "ip_address": result["ip_address"],
-                    "mac_address": result["mac_address"],
-                    "hostname": result["hostname"],
-                    "open_ports": port_info,
-                    "vendor": result["vendor"],
-                    "site": "Scanned Network",
-                    "segment": segment,
-                    "asset_type": result["asset_type"],
-                    "owner": "Unverified",
-                    "authorization_state": "unknown",
-                },
-            )
-            assets_discovered += 1
-
-            event_uid = f"evt-{uuid.uuid4().hex[:10]}"
-            event = event_service.create_event(
-                db,
-                {
-                    "event_uid": event_uid,
-                    "event_type": "observation_captured",
-                    "severity": "low",
-                    "asset_id": asset.id,
-                    "source": "lab_scan",
-                    "description": f"Asset {asset.hostname or asset.ip_address} discovered during lab scan — {len(result['open_ports'])} open ports",
-                    "payload": {
-                        "scan_uid": scan_uid,
-                        "ip": result["ip_address"],
-                        "ports": result["open_ports"],
-                        "vendor": result["vendor"],
-                        "mac": result["mac_address"],
-                    },
-                    "observed_at": now,
-                },
-            )
-            events_created += 1
-
-        # Run risk engine and correlation on all assets (demo + newly scanned)
-        all_assets = db.query(Asset).all()
-        for asset in all_assets:
-            asset_events = event_service.get_events_for_asset(db, asset.id)
-            existing_incidents = []
-
-            risk_result = risk_engine.compute(asset, asset_events, existing_incidents)
-
-            risk_decision = RiskDecision(
-                asset_id=asset.id,
-                exposure_score=risk_result["exposure_score"],
-                authorization_score=risk_result["authorization_score"],
-                asset_criticality_score=risk_result["asset_criticality_score"],
-                event_severity_score=risk_result["event_severity_score"],
-                recency_score=risk_result["recency_score"],
-                correlation_score=risk_result["correlation_score"],
-                uncertainty_penalty=risk_result["uncertainty_penalty"],
-                risk_score=risk_result["risk_score"],
-                risk_level=risk_result["risk_level"],
-                confidence_score=risk_result["confidence_score"],
-                feature_snapshot_json=json.dumps(risk_result["feature_snapshot"]),
-                triggered_rules_json=json.dumps(risk_result["triggered_rules"]),
-                explanation_json=json.dumps(risk_result["explanation"]),
-            )
-            db.add(risk_decision)
-            db.flush()
-
-            incidents = correlation_engine.correlate(
-                db, asset, risk_result, asset_events
-            )
-
-            for incident in incidents:
-                if incident.risk_score < risk_result["risk_score"]:
-                    incident.risk_score = risk_result["risk_score"]
-                    incident.confidence_score = risk_result["confidence_score"]
-                    incident.severity = risk_result["risk_level"]
-
-                sev_event_uid = f"evt-{uuid.uuid4().hex[:10]}"
-                event_service.create_event(
-                    db,
-                    {
-                        "event_uid": sev_event_uid,
-                        "event_type": "incident_correlated",
-                        "severity": risk_result["risk_level"],
-                        "asset_id": asset.id,
-                        "incident_id": incident.id,
-                        "source": "correlation_engine",
-                        "description": f"Asset {asset.hostname or asset.ip_address} correlated to incident {incident.incident_uid}",
-                        "payload": {
-                            "risk_score": risk_result["risk_score"],
-                            "category": incident.category,
-                        },
-                        "observed_at": now,
-                    },
-                )
-                events_created += 1
-
-        scan_run.assets_discovered = assets_discovered
-        scan_run.observations_created = observations_created
-        scan_run.events_created = events_created
-        scan_run.status = "completed"
-        scan_run.completed_at = datetime.datetime.utcnow()
-        db.commit()
-        db.refresh(scan_run)
-
-        replay_service.create_audit_record(
-            db,
-            entity_type="scan",
-            entity_id=scan_run.id,
-            event_type="scan_completed",
-            actor_type="analyst",
-            actor_id="manual",
-            payload={
-                "assets_discovered": assets_discovered,
-                "observations_created": observations_created,
-                "events_created": events_created,
-                "scan_type": "tcp_connect",
-                "real_data": True,
-            },
-        )
+        thread.start()
 
         return scan_run
+
+    def cancel_scan(self, db: Session, scan_run_id: int) -> dict:
+        """Request cancellation of a running scan."""
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        if scan.status not in ("queued", "running"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot cancel scan in '{scan.status}' state",
+            )
+
+        scan.status = "cancel_requested"
+        db.commit()
+
+        # Signal worker
+        scan_worker.cancel_scan(scan_run_id)
+
+        return {"scan_id": scan_run_id, "status": "cancel_requested"}
+
+    def get_scan_status(self, db: Session, scan_run_id: int) -> dict:
+        """Get scan status with progress."""
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        return {
+            "id": scan.id,
+            "scan_uid": scan.scan_uid,
+            "mode": scan.mode,
+            "target_cidr": scan.target_cidr,
+            "profile": scan.profile,
+            "status": scan.status,
+            "progress_percent": scan.progress_percent,
+            "assets_discovered": scan.assets_discovered,
+            "observations_created": scan.observations_created,
+            "events_created": scan.events_created,
+            "hosts_scanned": scan.hosts_scanned,
+            "hosts_responsive": scan.hosts_responsive,
+            "ports_open": scan.ports_open,
+            "started_at": scan.started_at.isoformat() if scan.started_at else None,
+            "completed_at": scan.completed_at.isoformat()
+            if scan.completed_at
+            else None,
+            "error_message": scan.error_message,
+        }
 
 
 scan_service = ScanService()

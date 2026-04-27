@@ -7,6 +7,9 @@ from apps.api.models import (
     Asset,
     ScanRun,
     ScanObservation,
+    ScanHostResult,
+    ScanPortResult,
+    ScanAuthorizationScope,
     SecurityEvent,
     RiskDecision,
     Incident,
@@ -15,6 +18,7 @@ from apps.api.models import (
     AuditRecord,
     AnalystFeedback,
     AetherLink,
+    OUICacheEntry,
 )
 from apps.api.routes.command import router as command_router
 from apps.api.routes.assets import router as assets_router
