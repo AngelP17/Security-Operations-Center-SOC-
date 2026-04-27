@@ -11,6 +11,7 @@
   --high: #f97316;
   --critical: #ef4444;
   --amber: #d99a2b;
+  --cyan: #22d3ee;
   --border: rgba(244, 241, 234, 0.1);
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
 }
@@ -242,8 +243,9 @@ p {
 }
 
 h1, h2, h3 {
-  hyphens: auto;
+  hyphens: none;
   overflow-wrap: break-word;
+  text-wrap: balance;
 }
 
 h1 {

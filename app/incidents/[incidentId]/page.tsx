@@ -11,6 +11,7 @@ import { useIncident } from "@/lib/hooks/use-incidents";
 import { useAssets } from "@/lib/hooks/use-assets";
 import { acceptRecommendation, createAetherTicket } from "@/lib/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { withDemoData, demoAssets, demoIncidents } from "@/lib/demo";
 
 function aetherMessage(status?: string | null) {
   if (status === "synced") return "Aether ticket synced";
@@ -57,7 +58,7 @@ export default function IncidentWorkbench() {
   if (isLoading) {
     return (
       <AppShell>
-        <RouteState type="loading" title="Loading incident..." />
+        <RouteState type="loading" skeletonLayout="cards" title="Loading incident..." />
       </AppShell>
     );
   }
@@ -65,12 +66,12 @@ export default function IncidentWorkbench() {
   if (error || !incident) {
     return (
       <AppShell>
-        <RouteState type="error" title="Incident not found" message="Failed to load incident from API." />
+        <RouteState type="error" title="Incident not found" message="Failed to load incident from API." actionLabel="Retry" onAction={() => window.location.reload()} />
       </AppShell>
     );
   }
 
-  const allAssets = assetsData?.items || [];
+  const allAssets = withDemoData(assetsData?.items, demoAssets);
   const affected = (incident.affected_assets || [])
     .map((name: string) => allAssets.find((a: any) => a.hostname === name || a.asset_uid === name))
     .filter(Boolean);
@@ -82,7 +83,7 @@ export default function IncidentWorkbench() {
       <div className="page-head">
         <div style={{ minWidth: 0 }}>
           <div className="eyebrow">Incident Workbench</div>
-          <h1>{incident.title}</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", textWrap: "balance" }}>{incident.title}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             <span className="mono muted">{incident.incident_uid}</span>
             <button
@@ -111,7 +112,7 @@ export default function IncidentWorkbench() {
       </div>
 
       {currentAetherStatus ? (
-        <div className={`panel aether-status ${currentAetherStatus === 'error' ? 'aether-error' : currentAetherStatus === 'disabled' ? 'aether-disabled' : 'aether-ok'}`}>
+        <div className={`command-surface aether-status ${currentAetherStatus === 'error' ? 'aether-error' : currentAetherStatus === 'disabled' ? 'aether-disabled' : 'aether-ok'}`} style={{ marginBottom: 14 }}>
           <span className={currentAetherStatus === "error" ? "risk-critical" : "risk-low"}>
             {aetherMessage(currentAetherStatus)}
           </span>
@@ -140,103 +141,118 @@ export default function IncidentWorkbench() {
       ) : null}
 
       <div className="split">
-        <section className="panel">
-          <div className="eyebrow">Evidence Timeline</div>
-          <div style={{ marginTop: 16 }}>
-            {(incident.timeline || []).map((item: any) => (
-              <div className="timeline-item" key={`${item.time}-${item.event}`} style={{ overflowWrap: "break-word" }}>
-                <span className="mono muted">{item.time} · {item.actor}</span>
-                <h2 style={{ marginTop: 4 }}>{item.event}</h2>
-                <p className="muted">{item.summary}</p>
-              </div>
-            ))}
+        <section className="command-surface">
+          <div style={{ padding: 16 }}>
+            <div className="eyebrow">Evidence Timeline</div>
+            <div style={{ marginTop: 16 }}>
+              {(incident.timeline || []).map((item: any) => (
+                <div className="timeline-item" key={`${item.time}-${item.event}`} style={{ overflowWrap: "break-word" }}>
+                  <span className="mono muted">{item.time} · {item.actor}</span>
+                  <h2 style={{ marginTop: 4, fontSize: 14, fontWeight: 700 }}>{item.event}</h2>
+                  <p className="muted" style={{ fontSize: 12 }}>{item.summary}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
-        <section className="grid">
-          <div className="panel">
-            <div className="eyebrow">Incident Summary</div>
-            <p className="muted" style={{ marginTop: 10, overflowWrap: "break-word" }}>{incident.summary}</p>
-          </div>
-          <div className="panel">
-            <div className="eyebrow">Affected Assets</div>
-            <div className="metric-list" style={{ marginTop: 12 }}>
-              {affected.map((asset: any) => (
-                <div className="metric-row" key={asset.id}>
-                  <span>{asset.hostname}<br /><span className="mono muted">{asset.ip_address}</span></span>
-                  <RiskBadge level={asset.risk_level || "low"} score={asset.risk_score || 0} />
-                </div>
-              ))}
+        <section className="grid" style={{ gap: 14 }}>
+          <div className="command-surface">
+            <div style={{ padding: 16 }}>
+              <div className="eyebrow">Incident Summary</div>
+              <p className="muted" style={{ marginTop: 10, overflowWrap: "break-word", fontSize: 13, lineHeight: 1.55 }}>{incident.summary}</p>
             </div>
           </div>
-          <div className="panel">
-            <div className="eyebrow">Risk Decision</div>
-            <h2 style={{ marginTop: 8 }}>Risk score: <span className="mono">{incident.risk_score}</span> {incident.severity}</h2>
-            <div className="metric-list" style={{ marginTop: 12 }}>
-              {(incident.decision_trace || []).map((item: any) => (
-                <div className="metric-row" key={item.label}>
-                  <span>{item.label}</span>
-                  <strong className="mono">+{item.value}</strong>
-                </div>
-              ))}
+          <div className="command-surface">
+            <div style={{ padding: 16 }}>
+              <div className="eyebrow">Affected Assets</div>
+              <div className="metric-list" style={{ marginTop: 12 }}>
+                {affected.map((asset: any) => (
+                  <div className="metric-row" key={asset.id}>
+                    <span>{asset.hostname}<br /><span className="mono muted">{asset.ip_address}</span></span>
+                    <RiskBadge level={asset.risk_level || "low"} score={asset.risk_score || 0} />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="panel">
-            <div className="eyebrow">Analyst Notes</div>
-            {(incident.notes || []).map((note: string) => (
-              <p className="muted" style={{ marginTop: 8, overflowWrap: "break-word" }} key={note}>
-                <MessageSquare size={13} style={{ display: "inline", marginRight: 6 }} />{note}
-              </p>
-            ))}
+          <div className="command-surface">
+            <div style={{ padding: 16 }}>
+              <div className="eyebrow">Risk Decision</div>
+              <h2 style={{ marginTop: 8, fontSize: 15, fontWeight: 700 }}>Risk score: <span className="mono">{incident.risk_score}</span> {incident.severity}</h2>
+              <div className="metric-list" style={{ marginTop: 12 }}>
+                {(incident.decision_trace || []).map((item: any) => (
+                  <div className="metric-row" key={item.label}>
+                    <span style={{ fontSize: 12 }}>{item.label}</span>
+                    <strong className="mono">+{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="command-surface">
+            <div style={{ padding: 16 }}>
+              <div className="eyebrow">Analyst Notes</div>
+              {(incident.notes || []).map((note: string) => (
+                <p className="muted" style={{ marginTop: 8, overflowWrap: "break-word", fontSize: 12, lineHeight: 1.5 }} key={note}>
+                  <MessageSquare size={13} style={{ display: "inline", marginRight: 6 }} />{note}
+                </p>
+              ))}
+            </div>
           </div>
         </section>
 
         <aside className="right-rail">
-          <section className="panel">
-            <div className="eyebrow">Recommendation Stack</div>
-            <div className="grid" style={{ marginTop: 12 }}>
-              {(incident.recommendations || []).map((rec: any) => (
-                <div className="card" style={{ padding: 14, overflow: "hidden" }} key={rec.id}>
-                  <span className="chip">Rank {rec.rank}</span>
-                  <h2 style={{ marginTop: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.action_label}</h2>
-                  <p
-                    className="muted"
-                    style={{
-                      marginTop: 8,
-                      fontSize: 12,
-                      overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: "vertical",
-                    }}
-                  >
-                    {rec.rationale}
-                  </p>
-                  <p style={{ marginTop: 8, fontSize: 12, overflowWrap: "break-word" }}>
-                    <strong>Benefit:</strong> <span className="muted">{rec.expected_benefit}</span>
-                  </p>
-                  <div className="filters" style={{ marginTop: 12, flexWrap: "wrap", gap: 8 }}>
-                    <span className="chip">{rec.confidence}% confidence</span>
-                    {rec.requires_approval ? <span className="chip">Approval required</span> : null}
+          <section className="command-surface">
+            <div style={{ padding: 16 }}>
+              <div className="eyebrow">Recommendation Stack</div>
+              <div className="grid" style={{ marginTop: 12, gap: 10 }}>
+                {(incident.recommendations || []).map((rec: any) => (
+                  <div className="command-surface" style={{ padding: 14, overflow: "hidden" }} key={rec.id}>
+                    <span className="chip" style={{ fontSize: 10 }}>Rank {rec.rank}</span>
+                    <h2 style={{ marginTop: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700 }}>{rec.action_label}</h2>
+                    <p
+                      className="muted"
+                      style={{
+                        marginTop: 8,
+                        fontSize: 12,
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {rec.rationale}
+                    </p>
+                    <p style={{ marginTop: 8, fontSize: 12, overflowWrap: "break-word" }}>
+                      <strong>Benefit:</strong> <span className="muted">{rec.expected_benefit}</span>
+                    </p>
+                    <div className="filters" style={{ marginTop: 12, flexWrap: "wrap", gap: 8 }}>
+                      <span className="chip" style={{ fontSize: 10 }}>{rec.confidence}% confidence</span>
+                      {rec.requires_approval ? <span className="chip" style={{ fontSize: 10 }}>Approval required</span> : null}
+                    </div>
+                    <button
+                      className="btn primary"
+                      style={{ marginTop: 12, width: "100%" }}
+                      disabled={rec.status === "accepted" || recommendationMutation.isPending}
+                      onClick={() => recommendationMutation.mutate(rec.id)}
+                    >
+                      <CheckCircle2 size={15} />
+                      {rec.status === "accepted" ? "Accepted" : recommendationMutation.isPending ? "Accepting..." : "Accept recommendation"}
+                    </button>
                   </div>
-                  <button
-                    className="btn primary"
-                    style={{ marginTop: 12, width: "100%" }}
-                    disabled={rec.status === "accepted" || recommendationMutation.isPending}
-                    onClick={() => recommendationMutation.mutate(rec.id)}
-                  >
-                    <CheckCircle2 size={15} />
-                    {rec.status === "accepted" ? "Accepted" : recommendationMutation.isPending ? "Accepting..." : "Accept recommendation"}
-                  </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </section>
-          <section className="panel">
-            <div className="eyebrow">Audit Trail</div>
-            <p className="muted" style={{ marginTop: 8, fontSize: 12, overflowWrap: "break-word" }}>
-              Decision writeback preserved: score, evidence, recommendation rank, analyst action, and resolution state.
-            </p>
+          <section className="command-surface">
+            <div style={{ padding: 16 }}>
+              <div className="eyebrow">Audit Trail</div>
+              <p className="muted" style={{ marginTop: 8, fontSize: 12, overflowWrap: "break-word", lineHeight: 1.5 }}>
+                Decision writeback preserved: score, evidence, recommendation rank, analyst action, and resolution state.
+              </p>
+            </div>
           </section>
         </aside>
       </div>

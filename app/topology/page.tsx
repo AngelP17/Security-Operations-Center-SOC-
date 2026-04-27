@@ -24,6 +24,7 @@ import {
   Circle,
   Zap,
   ChevronRight,
+  Play,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RiskBadge } from "@/components/shared/RiskBadge";
@@ -31,6 +32,7 @@ import { RouteState } from "@/components/shared/RouteState";
 import { useAssets, useAsset, useAssetRisk } from "@/lib/hooks/use-assets";
 import { useAssetReplay } from "@/lib/hooks/use-replay";
 import { useIncidents, useIncidentEvidence } from "@/lib/hooks/use-incidents";
+import { withDemoData, demoAssets, demoIncidents } from "@/lib/demo";
 import type { Asset, Incident } from "@/lib/types";
 
 const assetIconMap: Record<string, React.ComponentType<{ size?: number | string; color?: string }>> = {
@@ -149,7 +151,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
   const { data: risk, isLoading: riskLoading } = useAssetRisk(assetId);
   const { data: replay, isLoading: replayLoading } = useAssetReplay(assetId);
   const { data: incidentsData } = useIncidents();
-  const incidents = incidentsData?.items || [];
+  const incidents = withDemoData(incidentsData?.items, demoIncidents);
   const incident = asset ? findIncidentForAsset(incidents, asset) : null;
   const { data: evidenceData } = useIncidentEvidence(incident?.id);
   const evidence = evidenceData?.items || [];
@@ -160,7 +162,6 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 40, height: 40, borderRadius: 12, border: "1px solid var(--border)", background: "rgba(244,241,234,0.05)", display: "grid", placeItems: "center", flexShrink: 0 }}>
           <AssetIcon size={18} color="var(--amber)" />
@@ -179,8 +180,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
         </button>
       </div>
 
-      {/* Metadata */}
-      <section className="panel" style={{ padding: 12 }}>
+      <section className="command-surface" style={{ padding: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 10px", fontSize: 11 }}>
           <div>
             <div className="muted" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 1 }}>Segment</div>
@@ -214,8 +214,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
         ) : null}
       </section>
 
-      {/* Aether Ticket */}
-      <section className="panel" style={{ padding: 12 }}>
+      <section className="command-surface" style={{ padding: 12 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Ticket size={13} color="var(--amber)" />
@@ -241,8 +240,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
         )}
       </section>
 
-      {/* Evidence */}
-      <section className="panel" style={{ padding: 12 }}>
+      <section className="command-surface" style={{ padding: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
           <FileText size={13} color="var(--amber)" />
           <span className="eyebrow" style={{ fontSize: 9 }}>Evidence</span>
@@ -280,8 +278,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
         )}
       </section>
 
-      {/* Open Ports */}
-      <section className="panel" style={{ padding: 12 }}>
+      <section className="command-surface" style={{ padding: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
           <Globe size={13} color="var(--amber)" />
           <span className="eyebrow" style={{ fontSize: 9 }}>Open ports</span>
@@ -300,8 +297,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
         )}
       </section>
 
-      {/* Risk Decision */}
-      <section className="panel" style={{ padding: 12 }}>
+      <section className="command-surface" style={{ padding: 12 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <AlertTriangle size={13} color="var(--critical)" />
@@ -315,11 +311,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
               {risk.explanation?.[0] || "Risk decision computed from asset features and events."}
             </p>
             {incident ? (
-              <Link
-                href={`/incidents/${incident.id}`}
-                className="btn primary"
-                style={{ width: "100%", marginTop: 10, justifyContent: "center", minHeight: 32, fontSize: 11 }}
-              >
+              <Link href={`/incidents/${incident.id}`} className="btn primary" style={{ width: "100%", marginTop: 10, justifyContent: "center", minHeight: 32, fontSize: 11 }}>
                 Open incident workbench <ChevronRight size={12} />
               </Link>
             ) : null}
@@ -339,8 +331,8 @@ export default function TopologyPage() {
   const [riskFilter, setRiskFilter] = useState("all");
   const [segmentFilter, setSegmentFilter] = useState("all");
 
-  const assets = assetsData?.items || [];
-  const incidents = incidentsData?.items || [];
+  const assets = withDemoData(assetsData?.items, demoAssets);
+  const incidents = withDemoData(incidentsData?.items, demoIncidents);
   const segments = useMemo(
     () => Array.from(new Set<string>(assets.map((asset: any) => asset.segment || "Unknown"))).sort(),
     [assets]
@@ -446,7 +438,7 @@ export default function TopologyPage() {
   if (assetsLoading || incidentsLoading) {
     return (
       <AppShell>
-        <RouteState type="loading" title="Loading topology..." />
+        <RouteState type="loading" skeletonLayout="topology" title="Loading topology..." />
       </AppShell>
     );
   }
@@ -456,8 +448,8 @@ export default function TopologyPage() {
       <div className="page-head">
         <div>
           <div className="eyebrow">Network Topology</div>
-          <h1>Topology investigation</h1>
-          <p className="muted">Graph-based investigation by segment with risk rings and incident paths.</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>Topology investigation</h1>
+          <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>Graph-based investigation by segment with risk rings and incident paths.</p>
         </div>
         <div className="filters">
           {["all", "critical", "high", "medium", "low"].map((level) => (
@@ -472,7 +464,7 @@ export default function TopologyPage() {
         </div>
       </div>
       <div className="topology-shell">
-        <section className="panel topology" style={{ position: "relative", overflow: "hidden", minHeight: 640 }}>
+        <section className="command-surface topology" style={{ position: "relative", overflow: "hidden", minHeight: 640 }}>
           {nodes.length ? (
             <ReactFlow
               nodes={nodes}
@@ -490,7 +482,15 @@ export default function TopologyPage() {
               <Controls />
             </ReactFlow>
           ) : (
-            <RouteState type="empty" title="No topology nodes match these filters" message="Clear the risk or segment filter to restore graph context." />
+            <div style={{ display: "grid", placeItems: "center", height: "100%" }}>
+              <RouteState
+                type="empty"
+                title="No topology nodes match these filters"
+                message="Clear the risk or segment filter to restore graph context."
+                actionLabel="Reset filters"
+                onAction={() => { setRiskFilter("all"); setSegmentFilter("all"); }}
+              />
+            </div>
           )}
         </section>
         <aside className="topology-rail">
@@ -498,34 +498,51 @@ export default function TopologyPage() {
             <SelectedAssetRail assetId={selectedAssetId} onClose={() => setSelectedAssetId(null)} />
           ) : (
             <>
-              <section className="panel">
-                <div className="eyebrow">Investigation rail</div>
-                <h2 style={{ marginTop: 8, fontSize: 14 }}>Incident path context</h2>
-                <div className="topology-stat-grid">
-                  <span><strong className="mono">{topologyStats.visible}</strong><small>visible assets</small></span>
-                  <span><strong className="mono">{topologyStats.critical}</strong><small>critical</small></span>
-                  <span><strong className="mono">{topologyStats.unauthorized}</strong><small>unauthorized</small></span>
+              <section className="command-surface">
+                <div style={{ padding: 16 }}>
+                  <div className="eyebrow">Investigation rail</div>
+                  <h2 style={{ marginTop: 8, fontSize: 14, fontWeight: 700 }}>Incident path context</h2>
+                  <div className="topology-stat-grid">
+                    <span><strong className="mono">{topologyStats.visible}</strong><small>visible assets</small></span>
+                    <span><strong className="mono">{topologyStats.critical}</strong><small>critical</small></span>
+                    <span><strong className="mono">{topologyStats.unauthorized}</strong><small>unauthorized</small></span>
+                  </div>
                 </div>
               </section>
-              <section className="panel">
-                <div className="eyebrow">Aether handoff</div>
-                <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-                  Select an asset node to inspect its Aether ticket, evidence timeline, and risk decision.
-                </p>
+              <section className="command-surface">
+                <div style={{ padding: 16 }}>
+                  <div className="eyebrow">Aether handoff</div>
+                  <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+                    Select an asset node to inspect its Aether ticket, evidence timeline, and risk decision.
+                  </p>
+                </div>
               </section>
-              <section className="panel">
-                <div className="eyebrow">Active incident paths</div>
-                <div className="metric-list" style={{ marginTop: 12 }}>
-                  {railIncidents.length ? railIncidents.map((incident: any) => (
-                    <div className="metric-row" key={incident.id}>
-                      <span style={{ minWidth: 0 }}>
-                        <strong style={{ fontSize: 12 }}>{incident.incident_uid}</strong>
-                        <br />
-                        <span className="muted" style={{ fontSize: 11 }}>{incident.title}</span>
-                      </span>
-                      <RiskBadge level={incident.severity} score={incident.risk_score} />
-                    </div>
-                  )) : <p className="muted" style={{ fontSize: 12 }}>No incident paths are currently active.</p>}
+              <section className="command-surface">
+                <div style={{ padding: 16 }}>
+                  <div className="eyebrow">Active incident paths</div>
+                  <div className="metric-list" style={{ marginTop: 12 }}>
+                    {railIncidents.length ? railIncidents.map((incident: any) => (
+                      <div className="metric-row" key={incident.id}>
+                        <span style={{ minWidth: 0 }}>
+                          <strong style={{ fontSize: 12 }}>{incident.incident_uid}</strong>
+                          <br />
+                          <span className="muted" style={{ fontSize: 11 }}>{incident.title}</span>
+                        </span>
+                        <RiskBadge level={incident.severity} score={incident.risk_score} />
+                      </div>
+                    )) : <p className="muted" style={{ fontSize: 12 }}>No incident paths are currently active.</p>}
+                  </div>
+                </div>
+              </section>
+              <section className="command-surface">
+                <div style={{ padding: 16 }}>
+                  <div className="eyebrow">Getting started</div>
+                  <p className="muted" style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5 }}>
+                    The topology graph updates automatically when scans discover new assets. Run a demo scan to see the graph populate.
+                  </p>
+                  <Link href="/command" className="btn primary" style={{ marginTop: 12, width: "100%", justifyContent: "center", textDecoration: "none", fontSize: 12 }}>
+                    <Play size={13} /> Open command center
+                  </Link>
                 </div>
               </section>
             </>

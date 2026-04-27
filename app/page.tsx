@@ -1,3 +1,9 @@
+"use client";
+
+import { useRef } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   ArrowRight,
   Boxes,
@@ -10,6 +16,8 @@ import {
   TicketCheck,
 } from "lucide-react";
 import Link from "next/link";
+
+gsap.registerPlugin(ScrollTrigger);
 
 const workstreams = [
   {
@@ -39,8 +47,27 @@ const topologyPaths = [
 ];
 
 export default function LandingPage() {
+  const pageRef = useRef<HTMLElement>(null);
+
+  useGSAP(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(".home-workstream", {
+        y: 30,
+        opacity: 0,
+        duration: 0.6,
+        stagger: 0.1,
+        ease: "power2.out",
+        scrollTrigger: {
+          trigger: ".home-workstreams",
+          start: "top 80%",
+        },
+      });
+    }, pageRef);
+    return () => ctx.revert();
+  }, { scope: pageRef });
+
   return (
-    <main className="home-page">
+    <main ref={pageRef} className="home-page">
       <nav className="home-nav" aria-label="Primary">
         <Link href="/" className="home-brand" aria-label="ForgeSentinel home">
           <span className="home-brand-mark">
@@ -65,7 +92,7 @@ export default function LandingPage() {
       <section className="home-hero" aria-labelledby="home-title">
         <div className="home-copy">
           <p className="home-kicker">ForgeSentinel for manufacturing security teams</p>
-          <h1 id="home-title">
+          <h1 id="home-title" style={{ maxWidth: "none", textWrap: "balance" }}>
             Industrial risk mapped before downtime.
           </h1>
           <p>

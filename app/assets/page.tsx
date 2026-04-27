@@ -11,6 +11,7 @@ import { RiskBadge } from "@/components/shared/RiskBadge";
 import { RouteState } from "@/components/shared/RouteState";
 import { useAssets } from "@/lib/hooks/use-assets";
 import { useForgeStore } from "@/lib/store";
+import { withDemoData, demoAssets } from "@/lib/demo";
 import type { Asset } from "@/lib/types";
 
 const helper = createColumnHelper<Asset>();
@@ -39,7 +40,7 @@ export default function AssetsPage() {
   const { setSelectedAssetId } = useForgeStore();
   const { data, isLoading, error } = useAssets();
 
-  const allAssets: Asset[] = data?.items || [];
+  const allAssets: Asset[] = withDemoData(data?.items, demoAssets);
 
   useEffect(() => {
     const initial = new URLSearchParams(window.location.search).get("query") || "";
@@ -122,7 +123,7 @@ export default function AssetsPage() {
   if (isLoading) {
     return (
       <AppShell>
-        <RouteState type="loading" title="Loading assets..." />
+        <RouteState type="loading" skeletonLayout="table" title="Loading assets..." />
       </AppShell>
     );
   }
@@ -130,7 +131,7 @@ export default function AssetsPage() {
   if (error) {
     return (
       <AppShell>
-        <RouteState type="error" title="Failed to load assets" message="API connection failed." />
+        <RouteState type="error" title="Failed to load assets" message="API connection failed." actionLabel="Retry" onAction={() => window.location.reload()} />
       </AppShell>
     );
   }
@@ -140,8 +141,8 @@ export default function AssetsPage() {
       <div className="page-head">
         <div>
           <div className="eyebrow">Asset Intelligence</div>
-          <h1>Object-centric asset workflow</h1>
-          <p className="muted">
+          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>Object-centric asset workflow</h1>
+          <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
             {query ? `Showing search results for "${query}".` : "API-backed asset inventory with risk scores, authorization state, and scan provenance."}
           </p>
         </div>
@@ -165,9 +166,9 @@ export default function AssetsPage() {
       </div>
 
       {filtered.length ? (
-        <section className="panel" style={{ overflow: "hidden" }}>
+        <section className="command-surface" style={{ overflow: "hidden" }}>
           <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-            <table style={{ minWidth: 1100 }}>
+            <table style={{ minWidth: 1100, fontSize: 12 }}>
               <thead>
                 {table.getHeaderGroups().map((group) => (
                   <tr key={group.id}>
@@ -182,9 +183,9 @@ export default function AssetsPage() {
                   <motion.tr
                     key={row.id}
                     onClick={() => setSelectedAssetId(row.original.id)}
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                    transition={{ delay: i * 0.025, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
@@ -196,8 +197,8 @@ export default function AssetsPage() {
           </div>
         </section>
       ) : (
-        <div className="panel" style={{ minHeight: 320, display: "grid", placeItems: "center" }}>
-          <div style={{ textAlign: "center", maxWidth: 480 }}>
+        <div className="command-surface" style={{ minHeight: 320, display: "grid", placeItems: "center" }}>
+          <div style={{ textAlign: "center", maxWidth: 480, padding: "24px 16px" }}>
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -205,8 +206,8 @@ export default function AssetsPage() {
             >
               <SearchX size={48} style={{ margin: "0 auto 16px", color: "var(--amber)" }} />
             </motion.div>
-            <h2>No assets match this operational filter</h2>
-            <p className="muted" style={{ marginTop: 10 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700 }}>No assets match this operational filter</h2>
+            <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
               Clear the filter or run the safe demo scan to repopulate the asset intelligence queue.
             </p>
             <button

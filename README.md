@@ -4,6 +4,23 @@ ForgeSentinel is a manufacturing-focused SOC and Asset Risk Intelligence Platfor
 
 This is not just a dashboard — it is an operational security decision system.
 
+## Screenshots
+
+### Landing Page
+![Landing Page](docs/screenshots/landing.png)
+
+### Command Center
+![Command Center](docs/screenshots/command.png)
+
+### Asset Intelligence
+![Asset Intelligence](docs/screenshots/assets.png)
+
+### Incident Workbench
+![Incident Workbench](docs/screenshots/incidents.png)
+
+### Topology Investigation
+![Topology Investigation](docs/screenshots/topology.png)
+
 ## Architecture
 
 The UI is fully API-backed. All production pages fetch data from the FastAPI backend. Static fixture data exists only in `lib/fixtures/` and is used for seeding/demo scenarios.

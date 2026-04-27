@@ -97,7 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="brand-mark"><ShieldCheck size={20} /></div>
           <div className="brand-text">
             <strong>ForgeSentinel</strong>
-            <div className="muted" style={{ fontSize: 11 }}>Industrial Command UI</div>
+            <div className="muted" style={{ fontSize: 11, letterSpacing: "0.06em" }}>Industrial Command UI</div>
           </div>
         </div>
         {navGroups.map((group) => (
@@ -140,22 +140,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </form>
           </div>
           <div className="top-actions">
-            <span className="chip">Detroit Forge <ChevronDown size={13} /></span>
-            <button className={`chip ${labMode ? "risk-high" : "risk-low"}`} onClick={() => setLabMode(!labMode)}>
+            <span className="chip" style={{ fontSize: 11 }}>Detroit Forge <ChevronDown size={13} /></span>
+            <button className={`chip ${labMode ? "risk-high" : "risk-low"}`} style={{ fontSize: 11 }} onClick={() => setLabMode(!labMode)}>
               {labMode ? "Lab mode opt-in" : "Demo mode safe"}
             </button>
-            <span className="chip">{scanStatus}</span>
+            <span className="chip" style={{ fontSize: 11 }}>{scanStatus}</span>
             <button className="btn primary" onClick={handleScan} disabled={demoScan.isPending}>
-              <Play size={15} /> {demoScan.isPending ? "Scanning..." : "Run scan"}
+              <Play size={14} /> {demoScan.isPending ? "Scanning..." : "Run scan"}
             </button>
-            <span className="chip"><UserCircle size={15} /> Analyst</span>
+            <span className="chip" style={{ fontSize: 11 }}><UserCircle size={15} /> Analyst</span>
           </div>
         </header>
         <main className="workspace">
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
           >
             {children}
           </motion.div>
