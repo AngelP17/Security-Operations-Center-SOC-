@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  Bell,
   ChevronDown,
   Gauge,
   Factory,
@@ -149,7 +148,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button className="btn primary" onClick={handleScan} disabled={demoScan.isPending}>
               <Play size={15} /> {demoScan.isPending ? "Scanning..." : "Run scan"}
             </button>
-            <button className="btn" aria-label="Notifications" disabled title="Notifications are not configured in this build"><Bell size={15} /></button>
             <span className="chip"><UserCircle size={15} /> Analyst</span>
           </div>
         </header>

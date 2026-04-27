@@ -13,7 +13,7 @@ import { subscribeToDevices, subscribeToEvents, triggerNetworkScan, logSecurityE
 import { Device, SecurityEvent } from './types';
 import { Separator } from './components/ui/separator';
 import { toast, Toaster } from 'sonner';
-import { Radar, LogOut, Network, Shield, Settings, Users, Search, Filter, RefreshCw } from 'lucide-react';
+import { Radar, LogOut, Network, Shield, Settings, Users, Search, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { ScrollArea } from './components/ui/scroll-area';
 import { Badge } from './components/ui/badge';
@@ -288,9 +288,6 @@ function Dashboard() {
                         onChange={(e) => setEventSearch(e.target.value)}
                       />
                     </div>
-                    <Button variant="outline" size="icon" disabled title="Advanced event filters are not implemented in this build">
-                      <Filter className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
                 <Card className="bg-zinc-900/50 border-zinc-800">
@@ -345,12 +342,7 @@ function Dashboard() {
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 transition-opacity">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold tracking-tight text-zinc-100">User Management</h2>
-                  {isAdmin && (
-                    <Button variant="default" disabled className="bg-emerald-600 hover:bg-emerald-500" title="User creation is managed through Firebase Console">
-                      <Users className="w-4 h-4 mr-2" />
-                      Add User Unavailable
-                    </Button>
-                  )}
+
                 </div>
                 <Card className="bg-zinc-900/50 border-zinc-800">
                   <CardHeader>

@@ -23,6 +23,15 @@ This pass redesigned and tightened the active Next.js command UI and kept the le
 
 ## Next.js UI Changes
 
+- A second image-led redesign pass used generated UI references for the command center and topology surfaces, then translated them into the app.
+- `/command` now opens with a cinematic editorial command hero:
+  - industrial image treatment
+  - restrained amber accent
+  - real scan and topology CTAs
+  - GSAP entrance animation and scroll-linked motion
+  - inline media embedded in display typography
+- `/command` now uses a gapless 12-column bento intelligence layout for risk queue, incident focus, live events, exposed services, and scan status.
+- `/command` includes a kinetic marquee and sticky investigation stack to avoid the previous generic dashboard-card rhythm.
 - `/topology` was rebuilt around a more meaningful React Flow graph:
   - segment anchor nodes
   - asset nodes with hostname, IP, authorization, ports, type icon, and risk ring
@@ -30,6 +39,7 @@ This pass redesigned and tightened the active Next.js command UI and kept the le
   - segment filter
   - incident correlation edges
   - empty state when filters hide all nodes
+- `/topology` now includes a persistent investigation rail with visible asset counts, critical/unauthorized totals, Aether handoff guidance, and active incident paths, so small datasets do not leave a large empty graph void.
 - `/incidents/[incidentId]` now wires recommendation acceptance to the existing API.
 - Report-generation controls that are not backed by an implementation are disabled and labeled honestly instead of acting as fake buttons.
 - The global search bar now routes to `/assets?query=...`.

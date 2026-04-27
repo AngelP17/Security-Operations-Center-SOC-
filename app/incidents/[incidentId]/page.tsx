@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { CheckCircle2, Copy, ExternalLink, FileText, MessageSquare, Ticket } from "lucide-react";
+import { CheckCircle2, Copy, ExternalLink, MessageSquare, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { RiskBadge } from "@/components/shared/RiskBadge";
@@ -106,9 +106,6 @@ export default function IncidentWorkbench() {
         <div className="filters" style={{ flexWrap: "wrap", gap: 8 }}>
           <button className="btn" onClick={() => aetherMutation.mutate()} disabled={aetherMutation.isPending || hasAetherTicket}>
             <Ticket size={15} /> {aetherMutation.isPending ? "Creating..." : hasAetherTicket ? "Aether Ticket Recorded" : "Create Aether Ticket"}
-          </button>
-          <button className="btn" disabled title="Report generation is not implemented in this build">
-            <FileText size={15} /> Report unavailable
           </button>
         </div>
       </div>

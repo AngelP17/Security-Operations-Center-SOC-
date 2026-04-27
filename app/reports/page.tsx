@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { FileText } from "lucide-react";
+
 import { AppShell } from "@/components/layout/AppShell";
 import { RiskBadge } from "@/components/shared/RiskBadge";
 import { RouteState } from "@/components/shared/RouteState";
@@ -36,9 +36,6 @@ export default function ReportsPage() {
           <h1>Production security evidence packages</h1>
           <p className="muted">Create audit-ready exports from risk decisions, evidence timelines, analyst notes, and response actions.</p>
         </div>
-        <button className="btn" disabled title="Executive report generation is not implemented in this build" style={{ opacity: 0.5, cursor: "not-allowed" }}>
-          <FileText size={15} /> Report generation unavailable
-        </button>
       </div>
       <div className="grid command-grid">
         <section className="panel">
