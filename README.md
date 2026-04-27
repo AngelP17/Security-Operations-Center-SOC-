@@ -1,8 +1,10 @@
 # ForgeSentinel
 
-ForgeSentinel is a manufacturing-focused SOC and Asset Risk Intelligence Platform. It discovers authorized network assets, records scan observations, normalizes assets, computes explainable risk decisions, correlates incidents, generates recommendations, stores audit replay events, and optionally creates Aether OpsCenter tickets for operational response.
+**ForgeSentinel: Manufacturing SOC & Asset Risk Intelligence Platform**
 
-This is not just a dashboard — it is an operational security decision system.
+A production-grade security operations platform that transforms network scan observations into explainable, auditable security decisions. ForgeSentinel performs **real TCP connect scanning** against authorized private networks, ingests live observations, normalizes discovered assets, computes deterministic risk scores, correlates security incidents, generates analyst recommendations, stores full audit replay records, and optionally creates Aether OpsCenter tickets for operational response.
+
+This is not a dashboard with mock data — it is a functional operational security intelligence system.
 
 ## UI Architecture
 
@@ -83,9 +85,9 @@ graph TD
 
 ## Data Sources
 
-- **Demo mode**: `POST /api/scans/demo` writes fixture observations to the database, then runs the full normalization → risk → correlation → recommendation pipeline. Safe by default.
-- **Lab mode**: `POST /api/scans/lab` performs real TCP connect checks against authorized private networks only. Requires `REAL_SCAN_ENABLED=true`, admin privileges, and a CIDR inside `SCAN_ALLOWED_CIDRS`. Public internet scanning is blocked.
-- **API endpoints**: All UI data comes from `GET /api/command`, `GET /api/assets`, `GET /api/incidents`, `GET /api/events`, etc.
+- **Lab mode** (Real Scanning): `POST /api/scans/lab` performs actual TCP connect scanning against authorized private networks. Detects open ports, resolves hostnames via DNS/NetBIOS, reads MAC addresses from ARP tables, identifies vendors from MAC OUI, classifies asset types heuristically, and runs the full risk → correlation → recommendation pipeline on live data. Requires `REAL_SCAN_ENABLED=true` and a CIDR inside `SCAN_ALLOWED_CIDRS`. Public internet scanning is blocked.
+- **Demo mode**: `POST /api/scans/demo` seeds the database with realistic manufacturing fixture data for demonstration and testing. Safe by default. Does not touch the network.
+- **API endpoints**: All UI data is fetched live from `GET /api/command`, `GET /api/assets`, `GET /api/incidents`, `GET /api/events`, etc.
 
 ## Aether Integration
 
@@ -100,16 +102,19 @@ When `AETHER_ENABLED=true`, ForgeSentinel sends incident payloads (title, priori
 
 ## Risk Engine
 
-Deterministic scoring based on:
-- Exposure score (risky ports: Telnet, RDP, SMB, Modbus, VNC, etc.)
-- Authorization score (unauthorized = +35, unknown = +18)
-- Asset criticality (PLC = +28, production workstation = +22)
-- Event severity (recent critical/high events)
-- Recency score (newly discovered assets)
-- Correlation score (existing incidents)
-- Uncertainty penalty (unknown/unverified owner)
+Deterministic, explainable risk scoring computed from real scan observations:
 
-Total risk score is clamped 0-100. Levels: critical (≥80), high (≥60), medium (≥40), low.
+- **Exposure score**: Open ports weighted by service risk (Telnet, RDP, SMB, Modbus, VNC, MSSQL, RPC, JetDirect, etc.)
+- **Authorization score**: Unauthorized assets = +35, unknown = +18
+- **Asset criticality**: PLC = +28, production workstation = +22, HMI = +24, server = +20
+- **Event severity**: Recent critical/high security events
+- **Recency score**: Newly discovered assets receive elevated attention
+- **Correlation score**: Existing incident correlation increases risk
+- **Uncertainty penalty**: Unknown or unverified owner/operator
+
+Total risk score clamped 0-100. Levels: critical (≥80), high (≥60), medium (≥40), low.
+
+Every risk decision includes a full feature snapshot, triggered rules list, and human-readable explanation — stored for audit replay and analyst review.
 
 ## Tech Stack
 
@@ -117,6 +122,9 @@ Total risk score is clamped 0-100. Levels: critical (≥80), high (≥60), mediu
 | --- | --- |
 | Frontend | Next.js 14 App Router, React 18, TypeScript |
 | Backend | FastAPI, SQLAlchemy, SQLite |
+| Network Scanning | Python socket TCP connect, ARP table parsing, DNS/NetBIOS resolution, MAC OUI vendor lookup |
+| Risk Engine | Deterministic multi-factor scoring with explainable decisions |
+| Correlation | Rule-based incident correlation with confidence scoring |
 | Styling | Tailwind-compatible design tokens plus production CSS |
 | State | Zustand + TanStack React Query |
 | Tables | TanStack Table |

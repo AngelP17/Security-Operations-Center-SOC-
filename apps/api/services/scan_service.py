@@ -18,6 +18,7 @@ from apps.api.services.event_service import event_service
 from apps.api.services.risk_engine import risk_engine
 from apps.api.services.correlation_engine import correlation_engine
 from apps.api.services.replay_service import replay_service
+from apps.api.services.network_scanner import scan_network_range, DEFAULT_SCAN_PORTS
 
 
 PORT_SERVICE_MAP = {
@@ -363,24 +364,142 @@ class ScanService:
         observations_created = 0
         events_created = 0
 
-        hosts = list(network.hosts())
-        sample_hosts = hosts[:10] if len(hosts) > 10 else hosts
+        # --- REAL TCP CONNECT SCANNING ---
+        scan_results = scan_network_range(
+            network,
+            ports=DEFAULT_SCAN_PORTS,
+            max_hosts=30,
+            host_workers=20,
+        )
 
-        for ip in sample_hosts:
-            ip_str = str(ip)
+        for result in scan_results:
+            port_info = _build_port_info(result["open_ports"])
 
             obs = ScanObservation(
                 scan_run_id=scan_run.id,
-                ip_address=ip_str,
-                hostname=f"HOST-{ip_str.replace('.', '-')}",
-                mac_address=None,
-                vendor="Unknown",
-                open_ports_json="[]",
-                raw_payload_json=json.dumps({"simulated": True}),
+                ip_address=result["ip_address"],
+                hostname=result["hostname"],
+                mac_address=result["mac_address"],
+                vendor=result["vendor"],
+                open_ports_json=json.dumps(port_info),
+                raw_payload_json=json.dumps(
+                    {
+                        "scan_type": "tcp_connect",
+                        "ports_scanned": len(DEFAULT_SCAN_PORTS),
+                        "ports_open": len(result["open_ports"]),
+                        "vendor_detected": result["vendor"],
+                        "mac_detected": result["mac_address"] is not None,
+                    }
+                ),
             )
             db.add(obs)
             db.flush()
             observations_created += 1
+
+            # Determine segment heuristically
+            segment = "Unknown"
+            if result["ip_address"].startswith("192.168."):
+                segment = "Production"
+            elif result["ip_address"].startswith("10.20."):
+                segment = "Servers"
+            elif result["ip_address"].startswith("10."):
+                segment = "Corporate"
+
+            asset = asset_service.upsert_asset(
+                db,
+                {
+                    "ip_address": result["ip_address"],
+                    "mac_address": result["mac_address"],
+                    "hostname": result["hostname"],
+                    "open_ports": port_info,
+                    "vendor": result["vendor"],
+                    "site": "Scanned Network",
+                    "segment": segment,
+                    "asset_type": result["asset_type"],
+                    "owner": "Unverified",
+                    "authorization_state": "unknown",
+                },
+            )
+            assets_discovered += 1
+
+            event_uid = f"evt-{uuid.uuid4().hex[:10]}"
+            event = event_service.create_event(
+                db,
+                {
+                    "event_uid": event_uid,
+                    "event_type": "observation_captured",
+                    "severity": "low",
+                    "asset_id": asset.id,
+                    "source": "lab_scan",
+                    "description": f"Asset {asset.hostname or asset.ip_address} discovered during lab scan — {len(result['open_ports'])} open ports",
+                    "payload": {
+                        "scan_uid": scan_uid,
+                        "ip": result["ip_address"],
+                        "ports": result["open_ports"],
+                        "vendor": result["vendor"],
+                        "mac": result["mac_address"],
+                    },
+                    "observed_at": now,
+                },
+            )
+            events_created += 1
+
+        # Run risk engine and correlation on all assets (demo + newly scanned)
+        all_assets = db.query(Asset).all()
+        for asset in all_assets:
+            asset_events = event_service.get_events_for_asset(db, asset.id)
+            existing_incidents = []
+
+            risk_result = risk_engine.compute(asset, asset_events, existing_incidents)
+
+            risk_decision = RiskDecision(
+                asset_id=asset.id,
+                exposure_score=risk_result["exposure_score"],
+                authorization_score=risk_result["authorization_score"],
+                asset_criticality_score=risk_result["asset_criticality_score"],
+                event_severity_score=risk_result["event_severity_score"],
+                recency_score=risk_result["recency_score"],
+                correlation_score=risk_result["correlation_score"],
+                uncertainty_penalty=risk_result["uncertainty_penalty"],
+                risk_score=risk_result["risk_score"],
+                risk_level=risk_result["risk_level"],
+                confidence_score=risk_result["confidence_score"],
+                feature_snapshot_json=json.dumps(risk_result["feature_snapshot"]),
+                triggered_rules_json=json.dumps(risk_result["triggered_rules"]),
+                explanation_json=json.dumps(risk_result["explanation"]),
+            )
+            db.add(risk_decision)
+            db.flush()
+
+            incidents = correlation_engine.correlate(
+                db, asset, risk_result, asset_events
+            )
+
+            for incident in incidents:
+                if incident.risk_score < risk_result["risk_score"]:
+                    incident.risk_score = risk_result["risk_score"]
+                    incident.confidence_score = risk_result["confidence_score"]
+                    incident.severity = risk_result["risk_level"]
+
+                sev_event_uid = f"evt-{uuid.uuid4().hex[:10]}"
+                event_service.create_event(
+                    db,
+                    {
+                        "event_uid": sev_event_uid,
+                        "event_type": "incident_correlated",
+                        "severity": risk_result["risk_level"],
+                        "asset_id": asset.id,
+                        "incident_id": incident.id,
+                        "source": "correlation_engine",
+                        "description": f"Asset {asset.hostname or asset.ip_address} correlated to incident {incident.incident_uid}",
+                        "payload": {
+                            "risk_score": risk_result["risk_score"],
+                            "category": incident.category,
+                        },
+                        "observed_at": now,
+                    },
+                )
+                events_created += 1
 
         scan_run.assets_discovered = assets_discovered
         scan_run.observations_created = observations_created
@@ -401,6 +520,8 @@ class ScanService:
                 "assets_discovered": assets_discovered,
                 "observations_created": observations_created,
                 "events_created": events_created,
+                "scan_type": "tcp_connect",
+                "real_data": True,
             },
         )
 
