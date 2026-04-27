@@ -24,17 +24,47 @@ interface Link {
 
 export function NetworkMap({ devices }: NetworkMapProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const dragRef = useRef<{ x: number; y: number } | null>(null);
+    const rafRef = useRef<number>(0);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [links, setLinks] = useState<Link[]>([]);
     const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
+    const [canvasSize, setCanvasSize] = useState({ width: 800, height: 500 });
+
+    // Observe container size
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const resize = () => {
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const width = Math.max(rect.width, 300);
+            const height = Math.max(rect.height, 300);
+            setCanvasSize({ width, height });
+            const canvas = canvasRef.current;
+            if (canvas) {
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                canvas.style.width = `${width}px`;
+                canvas.style.height = `${height}px`;
+            }
+        };
+
+        resize();
+        window.addEventListener('resize', resize);
+        return () => window.removeEventListener('resize', resize);
+    }, []);
 
     // Initialize nodes and links from devices
     useEffect(() => {
         if (!devices.length) return;
 
-        // Center node (Gateway)
-        const centerX = 400;
-        const centerY = 250;
+        const width = canvasSize.width;
+        const height = canvasSize.height;
+        const centerX = width / 2;
+        const centerY = height / 2;
 
         // Create gateway node
         const gatewayNode: Node = {
@@ -50,7 +80,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
         const updatedNodes: Node[] = [gatewayNode];
         const updatedLinks: Link[] = [];
 
-        const radius = 200;
+        const radius = Math.min(width, height) * 0.35;
         const angleStep = (2 * Math.PI) / (devices.length || 1);
 
         devices.forEach((device, index) => {
@@ -68,7 +98,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
                 x: centerX + radius * Math.cos(angle),
                 y: centerY + radius * Math.sin(angle),
                 type,
-                status: device.status === 'online' ? 'online' : 'offline',
+                status: device.risk_level === 'critical' || device.risk_level === 'high' ? 'warning' : device.status === 'online' ? 'online' : 'offline',
                 label: device.hostname || device.ip_address || 'Unknown'
             });
 
@@ -81,7 +111,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
 
         setNodes(updatedNodes);
         setLinks(updatedLinks);
-    }, [devices]);
+    }, [devices, canvasSize]);
 
     // Draw canvas
     useEffect(() => {
@@ -89,14 +119,15 @@ export function NetworkMap({ devices }: NetworkMapProps) {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
+        const dpr = window.devicePixelRatio || 1;
 
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Apply transform
         ctx.save();
-        ctx.translate(transform.x, transform.y);
-        ctx.scale(transform.k, transform.k);
+        ctx.translate(transform.x * dpr, transform.y * dpr);
+        ctx.scale(transform.k * dpr, transform.k * dpr);
 
         // Draw links
         links.forEach(link => {
@@ -124,6 +155,13 @@ export function NetworkMap({ devices }: NetworkMapProps) {
 
             ctx.fill();
 
+            // Highlight warning/critical with thicker amber stroke
+            if (node.status === 'warning') {
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+
             // Stroke
             ctx.strokeStyle = '#0f172a'; // zinc-900
             ctx.lineWidth = 3;
@@ -144,7 +182,7 @@ export function NetworkMap({ devices }: NetworkMapProps) {
         });
 
         ctx.restore();
-    }, [nodes, links, transform]);
+    }, [nodes, links, transform, canvasSize]);
 
     return (
         <Card className="col-span-4 bg-zinc-900/50 border-zinc-800">
@@ -170,18 +208,33 @@ export function NetworkMap({ devices }: NetworkMapProps) {
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="p-0 overflow-hidden relative h-[500px] bg-black/50">
+            <CardContent ref={containerRef} className="p-0 overflow-hidden relative h-[500px] bg-black/50">
                 <canvas
                     ref={canvasRef}
-                    width={800}
-                    height={500}
                     className="w-full h-full cursor-move"
                     onMouseDown={(e) => {
-                        // Basic drag implementation could go here
+                        dragRef.current = { x: e.clientX, y: e.clientY };
+                    }}
+                    onMouseMove={(e) => {
+                        if (!dragRef.current) return;
+                        const dx = e.clientX - dragRef.current.x;
+                        const dy = e.clientY - dragRef.current.y;
+                        dragRef.current = { x: e.clientX, y: e.clientY };
+                        cancelAnimationFrame(rafRef.current);
+                        rafRef.current = requestAnimationFrame(() => {
+                            setTransform((current) => ({ ...current, x: current.x + dx, y: current.y + dy }));
+                        });
+                    }}
+                    onMouseUp={() => {
+                        dragRef.current = null;
+                    }}
+                    onMouseLeave={() => {
+                        dragRef.current = null;
                     }}
                 />
                 <div className="absolute bottom-4 right-4 flex flex-col gap-2 bg-zinc-900/80 p-2 rounded border border-zinc-700 text-xs text-zinc-400">
                     <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Online</div>
+                    <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500"></span> High risk</div>
                     <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-zinc-500"></span> Offline</div>
                     <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border border-zinc-500 bg-zinc-800 flex items-center justify-center text-[10px] text-white">R</div> Router</div>
                     <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-full border border-zinc-500 bg-zinc-800 flex items-center justify-center text-[10px] text-white">S</div> Server</div>

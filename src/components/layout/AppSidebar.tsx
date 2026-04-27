@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useEffect, useState } from "react"
 import {
   LayoutDashboard,
   Server,
@@ -21,6 +22,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "../ui/sidebar"
 
 // Menu items.
@@ -64,8 +66,24 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ activeView, onNavigate, ...props }: AppSidebarProps) {
+  const { setOpenMobile, openMobile } = useSidebar();
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile && openMobile) {
+        setOpenMobile(false);
+      }
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [openMobile, setOpenMobile]);
+
   return (
-    <Sidebar collapsible="icon" {...props}>
+    <Sidebar collapsible={isMobile ? "offcanvas" : "icon"} {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from './components/ui/sidebar';
 import { AppSidebar } from './components/layout/AppSidebar';
 import { InventoryTable } from './components/dashboard/InventoryTable';
@@ -9,7 +9,7 @@ import { AddDeviceDialog } from './components/dashboard/AddDeviceDialog';
 import { NetworkMap } from './components/dashboard/NetworkMap';
 import { Login } from './components/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { subscribeToDevices, subscribeToEvents, triggerNetworkScan, logSecurityEvent } from './services/api';
+import { subscribeToDevices, subscribeToEvents, triggerNetworkScan, logSecurityEvent, fetchInventory } from './services/api';
 import { Device, SecurityEvent } from './types';
 import { Separator } from './components/ui/separator';
 import { toast, Toaster } from 'sonner';
@@ -36,6 +36,18 @@ function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [eventSearch, setEventSearch] = useState('');
+  const [settingsState, setSettingsState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('soc-settings');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return {
+      autoScan: false,
+      notifications: false,
+      threatDetection: true,
+      refreshRate: '30s',
+    };
+  });
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -54,6 +66,20 @@ function Dashboard() {
       unsubDevices();
       unsubEvents();
     };
+  }, []);
+
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem('soc-settings', JSON.stringify(settingsState));
+  }, [settingsState]);
+
+  // Escape clears event search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEventSearch('');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Network scan handler
@@ -93,6 +119,19 @@ function Dashboard() {
     }
   };
 
+  const refreshDevices = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchInventory();
+      setDevices(data);
+      toast.success('Inventory refreshed');
+    } catch {
+      toast.error('Failed to refresh inventory');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -120,8 +159,9 @@ function Dashboard() {
   };
 
   // Handle settings actions
-  const handleSettingAction = (action: string) => {
-    toast.info(`${action} setting updated`, { description: 'Changes saved to local configuration' });
+  const handleSettingAction = (action: keyof typeof settingsState, value: boolean | string) => {
+    setSettingsState((current) => ({ ...current, [action]: value }));
+    toast.success('Setting updated', { description: 'Saved for this dashboard session' });
   };
 
 
@@ -146,8 +186,8 @@ function Dashboard() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            <div className="ml-auto flex items-center gap-4">
-              <div className="flex items-center gap-2 text-xs text-zinc-500">
+            <div className="ml-auto flex items-center gap-2 md:gap-4">
+              <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 System Online
               </div>
@@ -162,12 +202,12 @@ function Dashboard() {
                     }`}
                 >
                   <Radar className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-                  {isScanning ? 'Scanning...' : 'Scan Network'}
+                  <span className="hidden sm:inline">{isScanning ? 'Scanning...' : 'Scan Network'}</span>
                 </button>
               )}
 
-              <div className="flex items-center gap-3 pl-3 border-l border-zinc-700">
-                <div className="text-right">
+              <div className="flex items-center gap-3 pl-2 md:pl-3 border-l border-zinc-700">
+                <div className="text-right hidden md:block">
                   <p className="text-sm text-zinc-200">{userProfile?.displayName || user?.email}</p>
                   <p className="text-xs text-zinc-500 capitalize">{userProfile?.role || 'User'}</p>
                 </div>
@@ -185,7 +225,7 @@ function Dashboard() {
           <main className="flex flex-1 flex-col gap-4 p-4 pt-4 max-w-[1600px] mx-auto w-full">
             {/* Dashboard View */}
             {activeView === 'dashboard' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 transition-opacity">
                 <StatsCards devices={devices} />
                 <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
                   <NetworkTraffic />
@@ -196,7 +236,7 @@ function Dashboard() {
                   <InventoryTable
                     devices={devices.slice(0, 5)}
                     isLoading={isLoading}
-                    onRefresh={() => { }}
+                    onRefresh={refreshDevices}
                   />
                 </div>
               </div>
@@ -204,13 +244,13 @@ function Dashboard() {
 
             {/* Inventory View */}
             {activeView === 'inventory' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center justify-between">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 transition-opacity">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Network Inventory</h2>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleScan} disabled={isScanning || !isAdmin}>
-                      <RefreshCw className={`w-4 h-4 mr-2 ${isScanning ? 'animate-spin' : ''}`} />
-                      {isScanning ? 'Scanning...' : 'Refresh'}
+                    <Button variant="outline" onClick={refreshDevices} disabled={isLoading}>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                      {isLoading ? 'Refreshing...' : 'Refresh'}
                     </Button>
                     <AddDeviceDialog />
                   </div>
@@ -218,14 +258,14 @@ function Dashboard() {
                 <InventoryTable
                   devices={devices}
                   isLoading={isLoading}
-                  onRefresh={() => { }}
+                  onRefresh={refreshDevices}
                 />
               </div>
             )}
 
             {/* Network Map View */}
             {activeView === 'map' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 transition-opacity">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Network Map</h2>
                 </div>
@@ -235,20 +275,20 @@ function Dashboard() {
 
             {/* Security Events View */}
             {activeView === 'events' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center justify-between">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 transition-opacity">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Security Events</h2>
                   <div className="flex items-center gap-2">
                     <div className="relative">
                       <Search className="absolute left-2 top-2.5 h-4 w-4 text-zinc-500" />
                       <Input
                         placeholder="Search events..."
-                        className="pl-8 w-64 bg-zinc-900/50 border-zinc-800"
+                        className="pl-8 w-full sm:w-64 bg-zinc-900/50 border-zinc-800"
                         value={eventSearch}
                         onChange={(e) => setEventSearch(e.target.value)}
                       />
                     </div>
-                    <Button variant="outline" size="icon" onClick={() => toast.info('Advanced filters coming soon')}>
+                    <Button variant="outline" size="icon" disabled title="Advanced event filters are not implemented in this build">
                       <Filter className="w-4 h-4" />
                     </Button>
                   </div>
@@ -266,18 +306,18 @@ function Dashboard() {
                             <div key={event.id} className="p-4 hover:bg-zinc-800/30 transition">
                               <div className="flex items-start gap-4">
                                 <div className="mt-1">{getSeverityIcon(event.severity)}</div>
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between">
-                                    <p className="font-medium text-zinc-200">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="font-medium text-zinc-200 truncate">
                                       {event.description || event.message}
                                     </p>
-                                    <span className="text-xs text-zinc-500">
+                                    <span className="text-xs text-zinc-500 whitespace-nowrap">
                                       {typeof event.timestamp === 'string'
                                         ? event.timestamp
                                         : new Date(event.timestamp).toLocaleString()}
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-3 mt-1">
+                                  <div className="flex items-center gap-3 mt-1 flex-wrap">
                                     <span className="text-xs font-mono text-zinc-500">{event.source_ip}</span>
                                     <Badge variant="outline" className={`text-xs ${event.severity === 'critical' ? 'border-red-500/50 text-red-400' :
                                       event.severity === 'high' ? 'border-orange-500/50 text-orange-400' :
@@ -302,13 +342,13 @@ function Dashboard() {
 
             {/* Users View */}
             {activeView === 'users' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 transition-opacity">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold tracking-tight text-zinc-100">User Management</h2>
                   {isAdmin && (
-                    <Button variant="default" className="bg-emerald-600 hover:bg-emerald-500">
+                    <Button variant="default" disabled className="bg-emerald-600 hover:bg-emerald-500" title="User creation is managed through Firebase Console">
                       <Users className="w-4 h-4 mr-2" />
-                      Add User
+                      Add User Unavailable
                     </Button>
                   )}
                 </div>
@@ -324,16 +364,16 @@ function Dashboard() {
                     <div className="space-y-3">
                       {/* Current User */}
                       <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold shrink-0">
                             {(userProfile?.displayName || 'U')[0].toUpperCase()}
                           </div>
-                          <div>
-                            <p className="font-medium text-zinc-200">{userProfile?.displayName || user?.email}</p>
-                            <p className="text-xs text-zinc-500">{user?.email}</p>
+                          <div className="min-w-0">
+                            <p className="font-medium text-zinc-200 truncate">{userProfile?.displayName || user?.email}</p>
+                            <p className="text-xs text-zinc-500 truncate">{user?.email}</p>
                           </div>
                         </div>
-                        <Badge className={`${userProfile?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400' :
+                        <Badge className={`shrink-0 ${userProfile?.role === 'admin' ? 'bg-emerald-500/20 text-emerald-400' :
                           userProfile?.role === 'analyst' ? 'bg-amber-500/20 text-amber-400' :
                             'bg-zinc-500/20 text-zinc-400'
                           }`}>
@@ -352,7 +392,7 @@ function Dashboard() {
 
             {/* Settings View */}
             {activeView === 'settings' && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 transition-opacity">
                 <h2 className="text-2xl font-bold tracking-tight text-zinc-100">Settings</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className="bg-zinc-900/50 border-zinc-800">
@@ -368,21 +408,27 @@ function Dashboard() {
                           <p className="font-medium text-zinc-200">Auto-scan Network</p>
                           <p className="text-xs text-zinc-500">Scan every 30 minutes</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('Auto-scan')}>Configure</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('autoScan', !settingsState.autoScan)}>
+                          {settingsState.autoScan ? 'Enabled' : 'Disabled'}
+                        </Button>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
                         <div>
                           <p className="font-medium text-zinc-200">Alert Notifications</p>
                           <p className="text-xs text-zinc-500">Email alerts for critical events</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('Notifications')}>Configure</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('notifications', !settingsState.notifications)}>
+                          {settingsState.notifications ? 'Enabled' : 'Disabled'}
+                        </Button>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
                         <div>
                           <p className="font-medium text-zinc-200">Threat Detection</p>
                           <p className="text-xs text-zinc-500">Port scan and intrusion detection</p>
                         </div>
-                        <Badge className="bg-emerald-500/20 text-emerald-400 cursor-pointer" onClick={() => handleSettingAction('Threat Detection')}>Active</Badge>
+                        <Badge className="bg-emerald-500/20 text-emerald-400 cursor-pointer" onClick={() => handleSettingAction('threatDetection', !settingsState.threatDetection)}>
+                          {settingsState.threatDetection ? 'Active' : 'Paused'}
+                        </Badge>
                       </div>
                     </CardContent>
                   </Card>
@@ -400,14 +446,16 @@ function Dashboard() {
                           <p className="font-medium text-zinc-200">Dashboard Theme</p>
                           <p className="text-xs text-zinc-500">Dark mode enabled</p>
                         </div>
-                        <Badge className="bg-zinc-500/20 text-zinc-400 cursor-pointer" onClick={() => handleSettingAction('Theme')}>Dark</Badge>
+                        <Badge className="bg-zinc-500/20 text-zinc-400">Dark</Badge>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
                         <div>
                           <p className="font-medium text-zinc-200">Data Refresh Rate</p>
                           <p className="text-xs text-zinc-500">Real-time updates</p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('Refresh Rate')}>30s</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleSettingAction('refreshRate', settingsState.refreshRate === '30s' ? '60s' : '30s')}>
+                          {settingsState.refreshRate}
+                        </Button>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-lg">
                         <div>

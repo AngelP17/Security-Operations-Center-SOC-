@@ -8,6 +8,7 @@ from apps.api.models.incident import Incident, IncidentAssetLink, Recommendation
 from apps.api.models.asset import Asset
 from apps.api.models.risk import RiskDecision
 from apps.api.models.event import SecurityEvent
+from apps.api.models.audit import AetherLink
 from apps.api.schemas.incidents import (
     IncidentResponse,
     IncidentListResponse,
@@ -39,6 +40,13 @@ def list_incidents(db: Session = Depends(get_db)):
             if asset:
                 affected_assets.append(asset.hostname or asset.ip_address or "unknown")
 
+        aether_link = (
+            db.query(AetherLink)
+            .filter(AetherLink.incident_id == incident.id)
+            .order_by(AetherLink.created_at.desc())
+            .first()
+        )
+
         items.append(
             IncidentResponse(
                 id=incident.id,
@@ -58,6 +66,9 @@ def list_incidents(db: Session = Depends(get_db)):
                 timeline=[],
                 recommendations=[],
                 decision_trace=[],
+                aether_ticket_id=aether_link.aether_ticket_id if aether_link else None,
+                aether_ticket_url=aether_link.aether_ticket_url if aether_link else None,
+                aether_sync_status=aether_link.sync_status if aether_link else None,
             )
         )
 
@@ -108,6 +119,13 @@ def get_incident(incident_id: int, db: Session = Depends(get_db)):
         for r in recs
     ]
 
+    aether_link = (
+        db.query(AetherLink)
+        .filter(AetherLink.incident_id == incident_id)
+        .order_by(AetherLink.created_at.desc())
+        .first()
+    )
+
     asset_ids = [link.asset_id for link in links]
     decision_trace = []
     if asset_ids:
@@ -144,6 +162,9 @@ def get_incident(incident_id: int, db: Session = Depends(get_db)):
         timeline=timeline,
         recommendations=recommendations,
         decision_trace=decision_trace,
+        aether_ticket_id=aether_link.aether_ticket_id if aether_link else None,
+        aether_ticket_url=aether_link.aether_ticket_url if aether_link else None,
+        aether_sync_status=aether_link.sync_status if aether_link else None,
     )
 
 

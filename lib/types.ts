@@ -69,6 +69,9 @@ export interface Incident {
   recommendations: RecommendationItem[];
   decision_trace: { label: string; value: number }[];
   notes: string[];
+  aether_ticket_id?: string | null;
+  aether_ticket_url?: string | null;
+  aether_sync_status?: string | null;
 }
 
 export interface SecurityEvent {

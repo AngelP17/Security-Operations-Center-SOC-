@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Device, getPortInfo, isDangerousPort } from '../../types';
-import { toggleTrustStatus, updateDevice, logSecurityEvent } from '../../services/api';
+import { updateDevice, logSecurityEvent } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   Table,
@@ -19,7 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
-import { Search, ShieldCheck, ShieldAlert, Monitor, WifiOff, AlertTriangle, Info } from 'lucide-react';
+import { Search, ShieldCheck, ShieldAlert, WifiOff, AlertTriangle } from 'lucide-react';
 import { toast } from "sonner";
 
 interface InventoryTableProps {
@@ -30,8 +30,20 @@ interface InventoryTableProps {
 
 export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTableProps) {
   const { isAdmin, canWrite } = useAuth();
+  const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchTerm(searchInput);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchInput]);
 
   const filteredDevices = useMemo(() => {
     return devices.filter(d => {
@@ -154,8 +166,8 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
           <Input
             placeholder="Search IP, MAC, Hostname, Vendor..."
             className="pl-8 bg-zinc-900/50 border-zinc-800"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
         <div className="text-sm text-muted-foreground">
@@ -163,13 +175,13 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
         </div>
       </div>
 
-      <div className="rounded-md border border-zinc-800 bg-zinc-900/30">
-        <Table>
+      <div className="rounded-md border border-zinc-800 bg-zinc-900/30 overflow-x-auto">
+        <Table className="min-w-[900px]">
           <TableHeader className="bg-zinc-900/80">
             <TableRow className="border-zinc-800 hover:bg-zinc-900/80">
               <TableHead className="text-zinc-400">Status</TableHead>
-              <TableHead className="text-zinc-400">Hostname</TableHead>
-              <TableHead className="text-zinc-400">IP Address</TableHead>
+              <TableHead className="text-zinc-400 max-w-[200px]">Hostname</TableHead>
+              <TableHead className="text-zinc-400 max-w-[160px]">IP Address</TableHead>
               <TableHead className="text-zinc-400">MAC Address</TableHead>
               <TableHead className="text-zinc-400">Vendor</TableHead>
               <TableHead className="text-zinc-400">Ports</TableHead>
@@ -209,10 +221,10 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                     <TableCell>{getStatusBadge(device.status)}</TableCell>
 
                     {/* Hostname with Forensic Tooltip */}
-                    <TableCell>
+                    <TableCell className="max-w-[200px]">
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger className="font-medium text-zinc-200 hover:text-emerald-400 cursor-help">
+                          <TooltipTrigger className="font-medium text-zinc-200 hover:text-emerald-400 cursor-help truncate block max-w-full">
                             {device.hostname}
                           </TooltipTrigger>
                           <TooltipContent className="bg-zinc-800 border-zinc-700 max-w-xs">
@@ -229,13 +241,13 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                       </TooltipProvider>
                     </TableCell>
 
-                    <TableCell className="font-mono text-zinc-400">{ip}</TableCell>
+                    <TableCell className="font-mono text-zinc-400 truncate max-w-[160px]">{ip}</TableCell>
 
                     {/* MAC with Vendor Tooltip */}
-                    <TableCell>
+                    <TableCell className="max-w-[160px]">
                       <TooltipProvider>
                         <Tooltip>
-                          <TooltipTrigger className="font-mono text-xs text-zinc-500 hover:text-zinc-300 cursor-help">
+                          <TooltipTrigger className="font-mono text-xs text-zinc-500 hover:text-zinc-300 cursor-help truncate block max-w-full">
                             {mac || '-'}
                           </TooltipTrigger>
                           <TooltipContent className="bg-zinc-800 border-zinc-700">
@@ -247,7 +259,7 @@ export function InventoryTable({ devices, isLoading, onRefresh }: InventoryTable
                       </TooltipProvider>
                     </TableCell>
 
-                    <TableCell className="text-zinc-400">{device.vendor}</TableCell>
+                    <TableCell className="text-zinc-400 truncate max-w-[140px]">{device.vendor}</TableCell>
                     <TableCell>{renderPorts(device.open_ports)}</TableCell>
 
                     {/* Risk Level */}

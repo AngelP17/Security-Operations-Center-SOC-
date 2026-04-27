@@ -106,5 +106,27 @@ def test_create_aether_ticket_disabled_mode(client):
         assert response.status_code == 200
         data = response.json()
         assert data["sync_status"] == "disabled"
+        assert data["aether_ticket_id"] == f"pending-{incident_id}"
+    finally:
+        settings.AETHER_ENABLED = original
+
+
+def test_create_aether_ticket_is_idempotent(client):
+    """Creating an Aether ticket twice should return the existing local link."""
+    client.post("/api/scans/demo")
+    incident_id = client.get("/api/incidents/").json()["items"][0]["id"]
+
+    original = settings.AETHER_ENABLED
+    settings.AETHER_ENABLED = False
+    try:
+        first = client.post(f"/api/incidents/{incident_id}/create-aether-ticket")
+        second = client.post(f"/api/incidents/{incident_id}/create-aether-ticket")
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json() == second.json()
+
+        incident = client.get(f"/api/incidents/{incident_id}").json()
+        assert incident["aether_sync_status"] == "disabled"
+        assert incident["aether_ticket_id"] == f"pending-{incident_id}"
     finally:
         settings.AETHER_ENABLED = original

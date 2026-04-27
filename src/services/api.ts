@@ -78,10 +78,26 @@ export async function fetchInventory(): Promise<Device[]> {
   }
 }
 
-// Add a new device - currently placeholder
 export async function addDevice(device: Omit<Device, 'id'>): Promise<string> {
-  console.log('Add device not yet implemented in Flask backend', device);
-  return device.ip_address;
+  const response = await fetch('/api/security/add-device', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ip_address: device.ip_address,
+      hostname: device.hostname,
+      mac_address: device.mac_address,
+      vendor: device.vendor,
+      open_ports: device.open_ports || [],
+      risk_level: device.risk_level || 'low',
+      is_authorized: device.is_authorized,
+    }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to add device');
+  }
+  const data = await response.json();
+  return String(data.id || device.ip_address);
 }
 
 // Update device authorization via Flask backend
@@ -98,16 +114,6 @@ export async function updateDevice(deviceId: string, updates: Partial<Device>): 
     console.error('Error updating device:', error);
     throw error;
   }
-}
-
-// Toggle authorization status - placeholder
-export async function toggleTrustStatus(deviceId: string): Promise<void> {
-  console.log(`Toggling trust for device ${deviceId}`);
-}
-
-// Delete device - placeholder
-export async function deleteDevice(deviceId: string): Promise<void> {
-  console.log(`Delete device ${deviceId} not implemented`);
 }
 
 // --- SECURITY EVENTS FUNCTIONS ---

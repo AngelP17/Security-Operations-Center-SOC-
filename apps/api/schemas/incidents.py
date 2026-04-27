@@ -46,6 +46,9 @@ class IncidentResponse(BaseModel):
     timeline: list[TimelineItem] = []
     recommendations: list[RecommendationResponse] = []
     decision_trace: list[dict] = []
+    aether_ticket_id: Optional[str] = None
+    aether_ticket_url: Optional[str] = None
+    aether_sync_status: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

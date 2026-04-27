@@ -1,6 +1,6 @@
 "use client";
 
-import { X, CheckCircle2, FileText, RotateCcw, ShieldAlert, Wifi } from "lucide-react";
+import { X, CheckCircle2, FileText, RotateCcw, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForgeStore } from "@/lib/store";
 import { RiskBadge } from "./RiskBadge";
@@ -8,6 +8,15 @@ import { useAsset } from "@/lib/hooks/use-assets";
 import { useAssetRisk } from "@/lib/hooks/use-assets";
 import { useAssetReplay } from "@/lib/hooks/use-replay";
 import { RouteState } from "./RouteState";
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.06, duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
+  }),
+};
 
 export function AssetDetailDrawer() {
   const { selectedAssetId, setSelectedAssetId } = useForgeStore();
@@ -19,8 +28,20 @@ export function AssetDetailDrawer() {
     <AnimatePresence>
       {selectedAssetId ? (
         <>
-          <motion.div className="backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedAssetId(null)} />
-          <motion.aside className="drawer" initial={{ x: 540 }} animate={{ x: 0 }} exit={{ x: 540 }} transition={{ type: "spring", damping: 30, stiffness: 280 }}>
+          <motion.div
+            className="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedAssetId(null)}
+          />
+          <motion.aside
+            className="drawer"
+            initial={{ x: 440 }}
+            animate={{ x: 0 }}
+            exit={{ x: 440 }}
+            transition={{ type: "spring", damping: 30, stiffness: 280 }}
+          >
             <div className="page-head">
               <div>
                 <div className="eyebrow">Asset biography</div>
@@ -40,7 +61,13 @@ export function AssetDetailDrawer() {
 
             {asset && !assetLoading ? (
               <div className="grid">
-                <section className="panel">
+                <motion.section
+                  className="panel"
+                  custom={0}
+                  initial="hidden"
+                  animate="visible"
+                  variants={sectionVariants}
+                >
                   <div className="page-head" style={{ marginBottom: 10 }}>
                     <h2>Risk Decision</h2>
                     {risk && !riskLoading ? <RiskBadge level={risk.risk_level} score={risk.risk_score} /> : null}
@@ -60,9 +87,15 @@ export function AssetDetailDrawer() {
                   ) : (
                     <RouteState type="loading" title="Loading risk..." />
                   )}
-                </section>
+                </motion.section>
 
-                <section className="panel">
+                <motion.section
+                  className="panel"
+                  custom={1}
+                  initial="hidden"
+                  animate="visible"
+                  variants={sectionVariants}
+                >
                   <h2>Asset Identity</h2>
                   <div className="metric-list" style={{ marginTop: 12 }}>
                     <div className="metric-row"><span>Type</span><strong>{asset.asset_type?.toUpperCase()}</strong></div>
@@ -71,27 +104,45 @@ export function AssetDetailDrawer() {
                     <div className="metric-row"><span>Owner</span><strong>{asset.owner || "—"}</strong></div>
                     <div className="metric-row"><span>Site</span><strong>{asset.site}</strong></div>
                   </div>
-                </section>
+                </motion.section>
 
-                <section className="panel">
+                <motion.section
+                  className="panel"
+                  custom={2}
+                  initial="hidden"
+                  animate="visible"
+                  variants={sectionVariants}
+                >
                   <h2>Open Ports</h2>
                   <div className="filters" style={{ marginTop: 12 }}>
                     {(asset.open_ports || []).map((port: any) => (
                       <span className="chip mono" key={port.port}>{port.port}/{port.service}</span>
                     ))}
                   </div>
-                </section>
+                </motion.section>
 
-                <section className="panel">
+                <motion.section
+                  className="panel"
+                  custom={3}
+                  initial="hidden"
+                  animate="visible"
+                  variants={sectionVariants}
+                >
                   <h2>Triggered Rules</h2>
                   <div className="filters" style={{ marginTop: 12 }}>
                     {(risk?.triggered_rules || []).map((rule: string) => (
                       <span className="chip" key={rule}>{rule}</span>
                     ))}
                   </div>
-                </section>
+                </motion.section>
 
-                <section className="panel">
+                <motion.section
+                  className="panel"
+                  custom={4}
+                  initial="hidden"
+                  animate="visible"
+                  variants={sectionVariants}
+                >
                   <h2>Audit Replay</h2>
                   {replayLoading ? (
                     <RouteState type="loading" title="Loading replay..." />
@@ -107,17 +158,23 @@ export function AssetDetailDrawer() {
                   ) : (
                     <p className="muted">No audit steps recorded yet.</p>
                   )}
-                </section>
+                </motion.section>
 
-                <section className="panel">
+                <motion.section
+                  className="panel"
+                  custom={5}
+                  initial="hidden"
+                  animate="visible"
+                  variants={sectionVariants}
+                >
                   <h2>Actions</h2>
                   <div className="filters" style={{ marginTop: 12 }}>
-                    <button className="btn"><CheckCircle2 size={15} /> Confirm true positive</button>
-                    <button className="btn"><ShieldAlert size={15} /> Accept recommendation</button>
-                    <button className="btn"><RotateCcw size={15} /> Recompute risk</button>
-                    <button className="btn"><FileText size={15} /> Create report</button>
+                    <button className="btn" disabled title="Asset feedback workflow is not implemented in this build"><CheckCircle2 size={15} /> Confirm unavailable</button>
+                    <button className="btn" disabled title="Recommendation acceptance is available from the incident workbench"><ShieldAlert size={15} /> Use incident workbench</button>
+                    <button className="btn" disabled title="Risk recomputation runs through scan workflows"><RotateCcw size={15} /> Recompute unavailable</button>
+                    <button className="btn" disabled title="Report generation is not implemented in this build"><FileText size={15} /> Report unavailable</button>
                   </div>
-                </section>
+                </motion.section>
               </div>
             ) : (
               <RouteState type="loading" title="Loading asset..." />

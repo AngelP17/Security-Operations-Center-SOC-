@@ -19,6 +19,15 @@ class AetherClient:
         if not incident:
             raise HTTPException(status_code=404, detail="Incident not found")
 
+        existing = (
+            db.query(AetherLink)
+            .filter(AetherLink.incident_id == incident_id)
+            .order_by(AetherLink.created_at.desc())
+            .first()
+        )
+        if existing and existing.sync_status in ("synced", "disabled", "pending"):
+            return existing
+
         links = (
             db.query(IncidentAssetLink)
             .filter(IncidentAssetLink.incident_id == incident_id)

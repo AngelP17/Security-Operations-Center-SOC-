@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   AlertTriangle,
@@ -26,6 +27,12 @@ import { useEvents } from "@/lib/hooks/use-events";
 import { useForgeStore } from "@/lib/store";
 import type { Asset, SecurityEvent, Incident } from "@/lib/types";
 
+const sectionMotion = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.35, ease: "easeOut" as const },
+};
+
 function CommandSummary() {
   const { data, isLoading, error } = useCommandCenter();
   if (isLoading) return <RouteState type="loading" title="Loading command summary..." />;
@@ -34,7 +41,7 @@ function CommandSummary() {
   const incident = summary?.highest_risk_incident;
 
   return (
-    <section className="panel summary">
+    <motion.section className="panel summary" {...sectionMotion}>
       <div>
         <div className="eyebrow">Command Summary</div>
         {incident ? (
@@ -62,7 +69,7 @@ function CommandSummary() {
           <span className="chip mono">{new Date(summary.kpis.last_scan_at).toLocaleTimeString()}</span>
         ) : null}
       </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -81,11 +88,11 @@ function SecurityKpiGrid() {
   ];
 
   return (
-    <div className="grid kpi-grid" style={{ marginTop: 14 }}>
+    <motion.div className="grid kpi-grid" style={{ marginTop: 14, minWidth: 0, overflow: "hidden" }} {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.05 }}>
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <div className="panel kpi" key={item.label}>
+          <div className="panel kpi" key={item.label} style={{ minWidth: 0, overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span className="muted" style={{ fontSize: 12 }}>{item.label}</span>
               <Icon size={16} color={item.color} />
@@ -94,7 +101,7 @@ function SecurityKpiGrid() {
           </div>
         );
       })}
-    </div>
+    </motion.div>
   );
 }
 
@@ -110,7 +117,7 @@ function RiskQueue() {
     .sort((a: Asset, b: Asset) => (b.risk_score || 0) - (a.risk_score || 0));
 
   return (
-    <section className="panel" style={{ minHeight: 320 }}>
+    <motion.section className="panel" style={{ minHeight: 320, minWidth: 0, overflow: "hidden" }} {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.1 }}>
       <div className="page-head">
         <div>
           <div className="eyebrow">Prioritized Risk Queue</div>
@@ -127,7 +134,7 @@ function RiskQueue() {
       {items.length === 0 ? (
         <RouteState type="empty" title="No assets in risk queue" message="Run a scan to discover and assess assets." />
       ) : (
-        <div className="table-wrap" style={{ maxHeight: 420, overflow: "auto" }}>
+        <div className="table-wrap" style={{ maxHeight: 420, overflowX: "auto" }}>
           <table style={{ minWidth: 600 }}>
             <thead>
               <tr>
@@ -144,7 +151,9 @@ function RiskQueue() {
               {items.map((asset: Asset) => (
                 <tr key={asset.id} onClick={() => setSelectedAssetId(asset.id)}>
                   <td><RiskBadge level={asset.risk_level || "low"} score={asset.risk_score} /></td>
-                  <td><strong>{asset.hostname}</strong></td>
+                  <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <strong>{asset.hostname}</strong>
+                  </td>
                   <td className="mono">{asset.ip_address}</td>
                   <td>{asset.segment}</td>
                   <td>{asset.authorization_state}</td>
@@ -156,7 +165,7 @@ function RiskQueue() {
           </table>
         </div>
       )}
-    </section>
+    </motion.section>
   );
 }
 
@@ -174,15 +183,15 @@ function ActiveIncidentPanel() {
 
   if (!top) {
     return (
-      <section className="panel">
+      <motion.section className="panel" {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.1 }}>
         <div className="eyebrow">Active Incident</div>
         <p className="muted" style={{ marginTop: 10 }}>No open incidents. Run a scan to generate correlated incidents.</p>
-      </section>
+      </motion.section>
     );
   }
 
   return (
-    <section className="panel">
+    <motion.section className="panel" {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.1 }}>
       <div className="page-head" style={{ marginBottom: 8 }}>
         <div>
           <div className="eyebrow">Active Incident</div>
@@ -197,18 +206,18 @@ function ActiveIncidentPanel() {
         <div className="metric-row"><span>Affected Assets</span><strong>{top.affected_assets?.length || 0}</strong></div>
       </div>
       {top.recommendations?.slice(0, 2).map((rec) => (
-        <div key={rec.id} className="panel" style={{ marginTop: 10, padding: 12, background: "rgba(217,154,43,.06)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <strong>#{rec.rank} {rec.action_label}</strong>
-            <span className="chip">{rec.confidence}% confidence</span>
+        <div key={rec.id} className="panel" style={{ marginTop: 10, padding: 12, background: "rgba(217,154,43,.06)", overflow: "hidden" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{rec.rank} {rec.action_label}</strong>
+            <span className="chip" style={{ flexShrink: 0 }}>{rec.confidence}% confidence</span>
           </div>
-          <p className="muted" style={{ marginTop: 6, fontSize: 12 }}>{rec.rationale}</p>
+          <p className="muted" style={{ marginTop: 6, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.rationale}</p>
         </div>
       ))}
       <button className="btn primary" style={{ marginTop: 12, width: "100%" }} onClick={() => setSelectedIncidentId(top.id)}>
         Open Incident Workbench
       </button>
-    </section>
+    </motion.section>
   );
 }
 
@@ -219,7 +228,7 @@ function EventStream() {
   const events: SecurityEvent[] = data?.items || [];
 
   return (
-    <section className="panel" style={{ minHeight: 320 }}>
+    <motion.section className="panel" style={{ minHeight: 320, minWidth: 0, overflow: "hidden" }} {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.15 }}>
       <div className="page-head">
         <div>
           <div className="eyebrow">Live Event Stream</div>
@@ -245,7 +254,7 @@ function EventStream() {
           ))
         )}
       </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -269,7 +278,7 @@ function ExposureByPort() {
     .slice(0, 8);
 
   return (
-    <section className="panel">
+    <motion.section className="panel" style={{ minWidth: 0, overflow: "hidden" }} {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.15 }}>
       <div className="eyebrow">Top Exposed Services</div>
       {chartData.length === 0 ? (
         <p className="muted" style={{ marginTop: 10 }}>No exposed services discovered yet.</p>
@@ -283,7 +292,7 @@ function ExposureByPort() {
           </BarChart>
         </ResponsiveContainer>
       )}
-    </section>
+    </motion.section>
   );
 }
 
@@ -302,9 +311,9 @@ function RiskBySegment() {
   }
 
   return (
-    <section className="panel">
+    <motion.section className="panel" style={{ minWidth: 0, overflow: "hidden" }} {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.2 }}>
       <div className="eyebrow">Risk by Segment</div>
-      <div className="table-wrap" style={{ marginTop: 10 }}>
+      <div className="table-wrap" style={{ marginTop: 10, overflowX: "auto" }}>
         <table style={{ minWidth: 300 }}>
           <thead>
             <tr><th>Segment</th><th>Critical</th><th>High</th><th>Medium</th><th>Low</th></tr>
@@ -322,7 +331,7 @@ function RiskBySegment() {
           </tbody>
         </table>
       </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -332,7 +341,7 @@ function TopologyPreview() {
   const assets: Asset[] = (data?.items || []).slice(0, 6);
 
   return (
-    <section className="panel">
+    <motion.section className="panel" style={{ minWidth: 0, overflow: "hidden" }} {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.2 }}>
       <div className="eyebrow">Topology Preview</div>
       <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
         {assets.length === 0 ? (
@@ -351,10 +360,12 @@ function TopologyPreview() {
                 border: "1px solid var(--border)",
                 cursor: "pointer",
                 background: asset.risk_level === "critical" ? "rgba(239,68,68,.08)" : "transparent",
+                minWidth: 0,
+                overflow: "hidden",
               }}
             >
-              <div>
-                <strong style={{ fontSize: 13 }}>{asset.hostname}</strong>
+              <div style={{ minWidth: 0, overflow: "hidden" }}>
+                <strong style={{ fontSize: 13, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.hostname}</strong>
                 <div className="mono muted" style={{ fontSize: 11 }}>{asset.ip_address}</div>
               </div>
               <RiskBadge level={asset.risk_level || "low"} score={asset.risk_score} />
@@ -362,7 +373,7 @@ function TopologyPreview() {
           ))
         )}
       </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -371,7 +382,7 @@ function ScanStatusPanel() {
   const demoScan = useRunDemoScan();
 
   return (
-    <section className="panel">
+    <motion.section className="panel" style={{ minWidth: 0, overflow: "hidden" }} {...sectionMotion} transition={{ ...sectionMotion.transition, delay: 0.25 }}>
       <div className="eyebrow">Scan Status</div>
       <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -397,7 +408,7 @@ function ScanStatusPanel() {
           </div>
         ) : null}
       </div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -407,18 +418,18 @@ export default function CommandPage() {
       <CommandSummary />
       <SecurityKpiGrid />
 
-      <div className="grid command-grid" style={{ marginTop: 14 }}>
-        <div style={{ display: "grid", gap: 14 }}>
+      <div className="grid command-grid" style={{ marginTop: 14, minWidth: 0, overflow: "hidden" }}>
+        <div style={{ display: "grid", gap: 14, minWidth: 0, overflow: "hidden" }}>
           <RiskQueue />
-          <div className="grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(2, 1fr)", minWidth: 0, overflow: "hidden" }}>
             <ExposureByPort />
             <RiskBySegment />
           </div>
         </div>
-        <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+        <div style={{ display: "grid", gap: 14, alignContent: "start", minWidth: 0, overflow: "hidden" }}>
           <ActiveIncidentPanel />
           <EventStream />
-          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+          <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", minWidth: 0, overflow: "hidden" }}>
             <TopologyPreview />
             <ScanStatusPanel />
           </div>

@@ -3,7 +3,7 @@ import { riskClass } from "@/lib/types";
 
 export function RiskBadge({ level, score }: { level?: RiskLevel | string; score?: number }) {
   return (
-    <span className={`risk-badge ${riskClass(level as string)}`}>
+    <span className={`risk-badge ${riskClass(level as string)}`} style={{ flexShrink: 0 }}>
       {score !== undefined ? `${score} ` : null}
       {level || "unknown"}
     </span>
