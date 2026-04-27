@@ -50,6 +50,63 @@ graph TD
     API --> LabMode[Opt-in lab scan gate]
 ```
 
+## Backend Service Architecture
+
+```mermaid
+graph LR
+    subgraph "FastAPI Backend"
+        Router[API Routers] --> ScanSvc[Scanning Service]
+        Router --> AssetSvc[Asset Service]
+        Router --> RiskSvc[Risk Engine]
+        Router --> CorrSvc[Correlation Engine]
+        Router --> RecSvc[Recommendation Engine]
+        Router --> AetherSvc[Aether Integration]
+        Router --> AuditSvc[Audit Service]
+
+        ScanSvc --> ORM[(SQLite<br/>SQLAlchemy)]
+        AssetSvc --> ORM
+        RiskSvc --> ORM
+        CorrSvc --> ORM
+        RecSvc --> ORM
+        AetherSvc --> ORM
+        AuditSvc --> ORM
+    end
+
+    UI[Next.js UI<br/>Axios / lib/api.ts] --> Router
+    Scanner[Nmap Scanner<br/>TCP Connect] --> ScanSvc
+```
+
+## Data Model Flow
+
+```mermaid
+graph TD
+    subgraph "Ingestion"
+        Scan[scan_observations] --> Asset[assets]
+    end
+
+    subgraph "Event & Risk"
+        Asset --> Event[security_events]
+        Event --> Risk[risk_decisions]
+    end
+
+    subgraph "Correlation & Response"
+        Risk --> Incident[incidents]
+        Incident --> Rec[recommendations]
+    end
+
+    subgraph "Audit & Integration"
+        Rec --> Audit[audit_records]
+        Incident --> Aether[aether_links]
+    end
+
+    style Scan fill:#f9f,stroke:#333
+    style Asset fill:#f9f,stroke:#333
+    style Risk fill:#ff9,stroke:#333
+    style Incident fill:#f99,stroke:#333
+    style Aether fill:#9f9,stroke:#333
+    style Audit fill:#bbf,stroke:#333
+```
+
 ## Safety Model
 
 Safe demo scanning is the default operating state and uses local scenario data. Real scanning is represented as lab mode and requires explicit opt-in before `runLabScan` will issue an API request.

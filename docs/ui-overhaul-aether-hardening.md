@@ -8,6 +8,30 @@ This pass redesigned and tightened the active Next.js command UI and kept the le
 
 ## Aether Integration
 
+```mermaid
+graph TD
+    INC[Incident Created<br/>correlation_engine] --> AETHER{Aether Enabled?}
+    AETHER -->|No| PENDING[Create Pending AetherLink<br/>sync_status: disabled]
+    AETHER -->|Yes| EXISTS{Existing Link?}
+
+    EXISTS -->|synced / pending / disabled| RETURN[Return Existing Link<br/>Idempotent]
+    EXISTS -->|None| CREATE[Create Aether Ticket<br/>POST Aether OpsCenter]
+
+    CREATE -->|Success| SYNCED[Store Ticket ID + URL<br/>sync_status: synced]
+    CREATE -->|Failure| ERROR[sync_status: error]
+
+    PENDING --> UI[Incident Workbench UI]
+    RETURN --> UI
+    SYNCED --> UI
+    ERROR --> UI
+
+    style INC fill:#f9f,stroke:#333
+    style SYNCED fill:#9f9,stroke:#333
+    style ERROR fill:#f99,stroke:#333
+    style PENDING fill:#ff9,stroke:#333
+    style RETURN fill:#ff9,stroke:#333
+```
+
 - Incident responses now include the latest Aether ticket state:
   - `aether_ticket_id`
   - `aether_ticket_url`

@@ -4,51 +4,72 @@ ForgeSentinel is a manufacturing-focused SOC and Asset Risk Intelligence Platfor
 
 This is not just a dashboard — it is an operational security decision system.
 
-## Screenshots
+## UI Architecture
 
-### Landing Page
-![Landing Page](docs/screenshots/landing.png)
+ForgeSentinel uses a three-zone industrial command shell. Every module is API-backed via the FastAPI backend.
 
-### Command Center
-![Command Center](docs/screenshots/command.png)
+```mermaid
+graph TB
+    subgraph "ForgeSentinel Industrial Command UI"
+        Shell[Sentinel Shell<br/>Three-Zone Layout]
 
-### Asset Intelligence
-![Asset Intelligence](docs/screenshots/assets.png)
+        subgraph "Operations"
+            CMD[Command Center<br/>/command]
+            AST[Asset Intelligence<br/>/assets]
+            INC[Incident Workbench<br/>/incidents/:id]
+        end
 
-### Incident Workbench
-![Incident Workbench](docs/screenshots/incidents.png)
+        subgraph "Investigation"
+            TOP[Topology Investigation<br/>/topology]
+            RPL[Audit Replay<br/>/replay/:entityId]
+        end
 
-### Topology Investigation
-![Topology Investigation](docs/screenshots/topology.png)
+        subgraph "Output"
+            RPT[Reports<br/>/reports]
+            SET[Settings<br/>/settings]
+        end
 
-## Architecture
+        Shell --> CMD
+        Shell --> AST
+        Shell --> INC
+        Shell --> TOP
+        Shell --> RPL
+        Shell --> RPT
+        Shell --> SET
+    end
 
-The UI is fully API-backed. All production pages fetch data from the FastAPI backend. Static fixture data exists only in `lib/fixtures/` and is used for seeding/demo scenarios.
-
+    API[FastAPI Backend<br/>localhost:8000/api] -.-> Shell
+    CMD -.->|GET /api/command| API
+    AST -.->|GET /api/assets| API
+    INC -.->|GET /api/incidents| API
+    TOP -.->|GET /api/assets, /api/incidents| API
+    RPL -.->|GET /api/replay| API
 ```
-Authorized scan/import
-        ↓
-scan_observations table
-        ↓
-asset_service.upsert_asset()
-        ↓
-security_events table
-        ↓
-risk_engine.compute()
-        ↓
-risk_decisions table
-        ↓
-correlation_engine.correlate()
-        ↓
-incidents table
-        ↓
-recommendation_engine.generate()
-        ↓
-recommendations table
-        ↓
-audit_records table
-        ↓
-Next.js UI via API
+
+## Data Pipeline Architecture
+
+The backend runs a deterministic pipeline from raw scan observations to auditable risk decisions and incident correlations.
+
+```mermaid
+graph TD
+    A[Authorized Scan / Import] -->|POST /api/scans/demo or /lab| B[(scan_observations)]
+    B --> C[asset_service.upsert_asset]
+    C --> D[(security_events)]
+    D --> E[risk_engine.compute]
+    E --> F[(risk_decisions)]
+    F --> G[correlation_engine.correlate]
+    G --> H[(incidents)]
+    H --> I[recommendation_engine.generate]
+    I --> J[(recommendations)]
+    J --> K[(audit_records)]
+    K --> L[Next.js UI<br/>GET /api/command, /assets, /incidents, /events]
+
+    H -->|Aether Enabled| M[Aether OpsCenter<br/>Ticket Creation]
+    M --> N[(aether_links)]
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style L fill:#bbf,stroke:#333,stroke-width:2px
+    style M fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
 ## Core Workflows

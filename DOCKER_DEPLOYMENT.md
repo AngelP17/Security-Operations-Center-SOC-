@@ -39,6 +39,30 @@ The container uses `host` network mode to access your local network for scanning
 
 ---
 
+## Deployment Architecture
+
+```mermaid
+graph TB
+    subgraph "Host System"
+        subgraph "Docker Container: soc-dashboard"
+            App[Flask App<br/>Port 5001]
+            DB[(SQLite<br/>./data/)]
+            OUI[MAC OUI Database<br/>./oui.txt]
+            App --> DB
+            App --> OUI
+        end
+
+        Network[Local Network<br/>Host Mode] --> App
+    end
+
+    User[Analyst Browser] -->|HTTP :5001| App
+    User -->|HTTPS :443| Proxy[Reverse Proxy<br/>nginx/Caddy]
+    Proxy --> App
+
+    style App fill:#bbf,stroke:#333,stroke-width:2px
+    style Proxy fill:#9f9,stroke:#333,stroke-width:2px
+```
+
 ## Detailed Setup
 
 ### Environment Variables
