@@ -150,13 +150,40 @@ export interface ScanResult {
   scan_uid: string;
   mode: string;
   target_cidr: string;
+  profile?: string;
   status: string;
+  progress_percent?: number;
   assets_discovered: number;
   observations_created: number;
   events_created: number;
   safety_status: string;
   started_at: string;
   completed_at?: string;
+}
+
+export interface ScanProfile {
+  name: string;
+  description: string;
+  max_hosts: number;
+  timeout: number;
+  delay_between_hosts_ms: number;
+  banner_grab: boolean;
+  ot_protocol_probes: boolean;
+  port_count: number;
+  max_concurrent_hosts: number;
+  rate_limit_per_second: number;
+}
+
+export interface EvidenceItem {
+  id: number;
+  incident_id: number;
+  evidence_type: string;
+  description?: string;
+  summary?: string;
+  source?: string;
+  observed_at?: string;
+  created_at?: string;
+  asset_id?: number;
 }
 
 export function riskClass(level?: string) {

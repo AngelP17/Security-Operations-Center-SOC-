@@ -23,7 +23,7 @@ import { motion } from "framer-motion";
 import { Toaster } from "sonner";
 import { CmdKSearch } from "@/components/shared/CmdKSearch";
 import { useForgeStore } from "@/lib/store";
-import { useRunDemoScan } from "@/lib/hooks/use-command-center";
+import { useRunDemoScan, useRunLabScan } from "@/lib/hooks/use-command-center";
 import { useCommandCenter } from "@/lib/hooks/use-command-center";
 
 const navGroups = [
@@ -50,20 +50,71 @@ const navGroups = [
   },
 ];
 
+const routeDetails: Record<string, { label: string; detail: string }> = {
+  "/command": {
+    label: "Command Center",
+    detail: "Correlate live plant-floor risk with the response lane already attached.",
+  },
+  "/assets": {
+    label: "Asset Intelligence",
+    detail: "Search every device record with provenance, exposure, and authorization state in view.",
+  },
+  "/incidents": {
+    label: "Incident Workbench",
+    detail: "Keep severity, evidence, and the Aether handoff moving inside one operational thread.",
+  },
+  "/topology": {
+    label: "Topology Investigation",
+    detail: "Trace segment relationships without leaving the evidence context behind.",
+  },
+  "/reports": {
+    label: "Reporting",
+    detail: "Turn investigations into durable operational summaries for the next shift.",
+  },
+  "/settings": {
+    label: "System Controls",
+    detail: "Tune scanning behavior, routing, and workspace preferences without breaking flow.",
+  },
+};
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { labMode, setLabMode, setSelectedAssetId } = useForgeStore();
+  const {
+    labMode,
+    scanTargetCidr,
+    scanProfile,
+    highContrastMode,
+    setLabMode,
+    setSelectedAssetId,
+  } = useForgeStore();
   const demoScan = useRunDemoScan();
+  const labScan = useRunLabScan();
   const { data: commandData } = useCommandCenter();
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const currentRoute = Object.entries(routeDetails).find(([href]) => pathname === href || pathname.startsWith(`${href}/`))?.[1] ?? {
+    label: "ForgeSentinel Workspace",
+    detail: "Operational context remains connected as you move between command surfaces.",
+  };
 
   const lastScan = commandData?.kpis?.last_scan_at;
   const scanStatus = lastScan
     ? `Last scan ${new Date(lastScan).toLocaleTimeString()}`
     : "No scan data";
+  const freshnessLabel = commandData?.data_freshness
+    ? `Data ${commandData.data_freshness}`
+    : "Awaiting telemetry";
+  const isScanPending = demoScan.isPending || labScan.isPending;
+
+  useEffect(() => {
+    if (highContrastMode) {
+      document.documentElement.classList.add("high-contrast");
+    } else {
+      document.documentElement.classList.remove("high-contrast");
+    }
+  }, [highContrastMode]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -81,6 +132,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [setSelectedAssetId]);
 
   async function handleScan() {
+    if (labMode) {
+      labScan.mutate({
+        targetCidr: scanTargetCidr,
+        profile: scanProfile,
+      });
+      return;
+    }
     demoScan.mutate();
   }
 
@@ -93,42 +151,63 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="brand">
-          <div className="brand-mark"><ShieldCheck size={20} /></div>
-          <div className="brand-text">
-            <strong>ForgeSentinel</strong>
-            <div className="muted" style={{ fontSize: 11, letterSpacing: "0.06em" }}>Industrial Command UI</div>
+        <div className="sidebar-frame">
+          <div className="brand">
+            <div className="brand-mark"><ShieldCheck size={20} /></div>
+            <div className="brand-text">
+              <strong>ForgeSentinel</strong>
+              <div className="muted" style={{ fontSize: 11, letterSpacing: "0.06em" }}>Industrial command system</div>
+            </div>
+          </div>
+          {navGroups.map((group) => (
+            <div className="nav-section" key={group.label}>
+              <div className="nav-label">{group.label}</div>
+              {group.items.map((item) => {
+                const active = pathname === item.href || (item.href !== "/command" && pathname.startsWith(item.href));
+                const Icon = item.icon;
+                return (
+                  <Link className={`nav-link ${active ? "active" : ""}`} href={item.href} key={item.href} onClick={() => setSidebarOpen(false)}>
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+          <div className="sidebar-status panel">
+            <div className="eyebrow" style={{ marginBottom: 10 }}>Shift overview</div>
+            <div className="sidebar-stat">
+              <span className="muted">Site</span>
+              <strong>Detroit Forge</strong>
+            </div>
+            <div className="sidebar-stat">
+              <span className="muted">Scan lane</span>
+              <strong>{labMode ? "Lab mode" : "Safe demo"}</strong>
+            </div>
+            <div className="sidebar-stat">
+              <span className="muted">Analyst</span>
+              <strong>Primary console</strong>
+            </div>
           </div>
         </div>
-        {navGroups.map((group) => (
-          <div className="nav-section" key={group.label}>
-            <div className="nav-label">{group.label}</div>
-            {group.items.map((item) => {
-              const active = pathname === item.href || (item.href !== "/command" && pathname.startsWith(item.href));
-              const Icon = item.icon;
-              return (
-                <Link className={`nav-link ${active ? "active" : ""}`} href={item.href} key={item.href} onClick={() => setSidebarOpen(false)}>
-                  <Icon size={16} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
       </aside>
-      <div>
+      <div className="app-shell-stage">
         <header className="topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="shell-topbar-left">
             <button
-              className="btn"
+              className="btn shell-icon-btn"
               aria-label="Toggle sidebar"
               onClick={() => setSidebarOpen((s) => !s)}
-              style={{ display: "none" }}
               id="sidebar-toggle"
             >
               {sidebarOpen ? <X size={16} /> : <Menu size={16} />}
             </button>
-            <form className="search" onSubmit={handleSearchSubmit}>
+            <div className="shell-route">
+              <span className="shell-route-mark">Live workspace</span>
+              <strong>{currentRoute.label}</strong>
+              <p>{currentRoute.detail}</p>
+            </div>
+            <form className="search shell-search" onSubmit={handleSearchSubmit}>
               <Search size={16} />
               <input
                 ref={searchRef}
@@ -139,14 +218,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
             </form>
           </div>
-          <div className="top-actions">
+          <div className="top-actions shell-topbar-right">
             <span className="chip" style={{ fontSize: 11 }}>Detroit Forge <ChevronDown size={13} /></span>
             <button className={`chip ${labMode ? "risk-high" : "risk-low"}`} style={{ fontSize: 11 }} onClick={() => setLabMode(!labMode)}>
               {labMode ? "Lab mode opt-in" : "Demo mode safe"}
             </button>
+            <span className="chip" style={{ fontSize: 11 }}>{freshnessLabel}</span>
             <span className="chip" style={{ fontSize: 11 }}>{scanStatus}</span>
-            <button className="btn primary" onClick={handleScan} disabled={demoScan.isPending}>
-              <Play size={14} /> {demoScan.isPending ? "Scanning..." : "Run scan"}
+            <button className="btn primary" onClick={handleScan} disabled={isScanPending}>
+              <Play size={14} /> {isScanPending ? "Scanning..." : labMode ? "Run lab scan" : "Run demo scan"}
             </button>
             <span className="chip" style={{ fontSize: 11 }}><UserCircle size={15} /> Analyst</span>
           </div>

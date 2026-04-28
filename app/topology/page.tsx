@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import ReactFlow, { Background, Controls, MiniMap, useReactFlow, type Edge, type Node } from "reactflow";
 import "reactflow/dist/style.css";
 import Link from "next/link";
@@ -25,6 +28,8 @@ import {
   Zap,
   ChevronRight,
   Play,
+  Maximize2,
+  RotateCcw,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RiskBadge } from "@/components/shared/RiskBadge";
@@ -32,8 +37,9 @@ import { RouteState } from "@/components/shared/RouteState";
 import { useAssets, useAsset, useAssetRisk } from "@/lib/hooks/use-assets";
 import { useAssetReplay } from "@/lib/hooks/use-replay";
 import { useIncidents, useIncidentEvidence } from "@/lib/hooks/use-incidents";
-import { withDemoData, demoAssets, demoIncidents } from "@/lib/demo";
 import type { Asset, Incident } from "@/lib/types";
+
+gsap.registerPlugin(ScrollTrigger);
 
 const assetIconMap: Record<string, React.ComponentType<{ size?: number | string; color?: string }>> = {
   plc: Cpu,
@@ -85,8 +91,12 @@ function TopologyControls({ onReset }: { onReset: () => void }) {
   const { fitView } = useReactFlow();
   return (
     <div style={{ position: "absolute", top: 14, left: 14, zIndex: 10, display: "flex", gap: 8 }}>
-      <button className="btn" onClick={() => fitView({ padding: 0.2 })}>Fit View</button>
-      <button className="btn" onClick={onReset}>Reset Filters</button>
+      <button className="btn" onClick={() => fitView({ padding: 0.2 })} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <Maximize2 size={13} /> Fit View
+      </button>
+      <button className="btn" onClick={onReset} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <RotateCcw size={13} /> Reset
+      </button>
     </div>
   );
 }
@@ -151,7 +161,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
   const { data: risk, isLoading: riskLoading } = useAssetRisk(assetId);
   const { data: replay, isLoading: replayLoading } = useAssetReplay(assetId);
   const { data: incidentsData } = useIncidents();
-  const incidents = withDemoData(incidentsData?.items, demoIncidents);
+  const incidents = incidentsData?.items || [];
   const incident = asset ? findIncidentForAsset(incidents, asset) : null;
   const { data: evidenceData } = useIncidentEvidence(incident?.id);
   const evidence = evidenceData?.items || [];
@@ -161,7 +171,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
   if (!asset) return <RouteState type="error" title="Asset not found" />;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className="topology-rail-enter" style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 40, height: 40, borderRadius: 12, border: "1px solid var(--border)", background: "rgba(244,241,234,0.05)", display: "grid", placeItems: "center", flexShrink: 0 }}>
           <AssetIcon size={18} color="var(--amber)" />
@@ -247,7 +257,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
         </div>
         {evidence.length > 0 ? (
           <div style={{ display: "grid", gap: 6 }}>
-            {evidence.slice(0, 4).map((item: any, idx: number) => (
+            {evidence.slice(0, 4).map((item: { evidence_type?: string; description?: string; summary?: string; observed_at?: string }, idx: number) => (
               <div key={idx} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 6, alignItems: "start", padding: "6px 0", borderBottom: idx < Math.min(evidence.length, 4) - 1 ? "1px solid var(--border)" : undefined }}>
                 <div style={{ marginTop: 1 }}>
                   {item.evidence_type?.includes("network") ? <Globe size={12} color="var(--cyan)" /> : item.evidence_type?.includes("file") ? <FileText size={12} color="var(--amber)" /> : item.evidence_type?.includes("process") ? <Zap size={12} color="var(--high)" /> : <Activity size={12} color="var(--muted)" />}
@@ -262,7 +272,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
           </div>
         ) : replay && !replayLoading && replay.steps?.length ? (
           <div style={{ display: "grid", gap: 6 }}>
-            {replay.steps.slice(0, 3).map((step: any, idx: number) => (
+            {replay.steps.slice(0, 3).map((step: { event_type: string; description?: string; actor_type?: string; timestamp: string }, idx: number) => (
               <div key={idx} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 6, alignItems: "start", padding: "6px 0", borderBottom: idx < Math.min(replay.steps.length, 3) - 1 ? "1px solid var(--border)" : undefined }}>
                 <div style={{ marginTop: 1 }}><Activity size={12} color="var(--muted)" /></div>
                 <div>
@@ -285,7 +295,7 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
         </div>
         {(asset.open_ports || []).length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-            {asset.open_ports.map((port: any) => (
+            {asset.open_ports.map((port: { port: number; service: string }) => (
               <div key={port.port} style={{ border: "1px solid var(--border)", background: "rgba(244, 241, 234, 0.04)", borderRadius: 6, padding: "4px 6px", fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>
                 <strong className="mono">{port.port}</strong>
                 <span className="muted" style={{ fontSize: 9, textTransform: "uppercase" }}>{port.service}</span>
@@ -325,27 +335,28 @@ function SelectedAssetRail({ assetId, onClose }: { assetId: number; onClose: () 
 }
 
 export default function TopologyPage() {
+  const pageRef = useRef<HTMLDivElement>(null);
   const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null);
   const { data: assetsData, isLoading: assetsLoading } = useAssets();
   const { data: incidentsData, isLoading: incidentsLoading } = useIncidents();
   const [riskFilter, setRiskFilter] = useState("all");
   const [segmentFilter, setSegmentFilter] = useState("all");
 
-  const assets = withDemoData(assetsData?.items, demoAssets);
-  const incidents = withDemoData(incidentsData?.items, demoIncidents);
+  const assets: Asset[] = assetsData?.items || [];
+  const incidents: Incident[] = incidentsData?.items || [];
   const segments = useMemo(
-    () => Array.from(new Set<string>(assets.map((asset: any) => asset.segment || "Unknown"))).sort(),
+    () => Array.from(new Set<string>(assets.map((asset) => asset.segment || "Unknown"))).sort(),
     [assets]
   );
 
-  const visibleAssets = useMemo(() => assets.filter((asset: any) => {
+  const visibleAssets = useMemo(() => assets.filter((asset) => {
     const riskMatches = riskFilter === "all" || (asset.risk_level || "low") === riskFilter;
     const segmentMatches = segmentFilter === "all" || (asset.segment || "Unknown") === segmentFilter;
     return riskMatches && segmentMatches;
   }), [assets, riskFilter, segmentFilter]);
 
   const visibleBySegment = useMemo(() => {
-    const grouped: Record<string, any[]> = {};
+    const grouped: Record<string, Asset[]> = {};
     for (const asset of visibleAssets) {
       const segment = asset.segment || "Unknown";
       if (!grouped[segment]) grouped[segment] = [];
@@ -357,15 +368,28 @@ export default function TopologyPage() {
   const railIncidents = useMemo(() => incidents.slice(0, 3), [incidents]);
 
   const topologyStats = useMemo(() => {
-    const critical = visibleAssets.filter((asset: any) => asset.risk_level === "critical").length;
-    const unauthorized = visibleAssets.filter((asset: any) => asset.authorization_state === "unauthorized").length;
+    const critical = visibleAssets.filter((asset) => asset.risk_level === "critical").length;
+    const unauthorized = visibleAssets.filter((asset) => asset.authorization_state === "unauthorized").length;
     return { critical, unauthorized, visible: visibleAssets.length };
   }, [visibleAssets]);
+
+  const segmentSnapshot = useMemo(
+    () =>
+      Object.entries(visibleBySegment)
+        .map(([segment, segmentAssets]) => ({
+          segment,
+          total: segmentAssets.length,
+          elevated: segmentAssets.filter((asset) => ["critical", "high"].includes(asset.risk_level || "")).length,
+        }))
+        .sort((a, b) => b.elevated - a.elevated || b.total - a.total)
+        .slice(0, 5),
+    [visibleBySegment],
+  );
 
   const { nodes, edges } = useMemo(() => {
     const nextNodes: Node[] = [];
     const nextEdges: Edge[] = [];
-    const visibleIds = new Set(visibleAssets.map((asset: any) => String(asset.id)));
+    const visibleIds = new Set(visibleAssets.map((asset) => String(asset.id)));
 
     Object.entries(visibleBySegment).forEach(([segment, segmentAssets], segmentIndex) => {
       const y = 70 + segmentIndex * 210;
@@ -379,8 +403,8 @@ export default function TopologyPage() {
       });
 
       segmentAssets
-        .sort((a: any, b: any) => (b.risk_score || 0) - (a.risk_score || 0))
-        .forEach((asset: any, index: number) => {
+        .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
+        .forEach((asset, index) => {
           const assetId = String(asset.id);
           nextNodes.push({
             id: assetId,
@@ -392,7 +416,7 @@ export default function TopologyPage() {
               ip: asset.ip_address,
               type: asset.asset_type || "unknown",
               auth: asset.authorization_state,
-              ports: (asset.open_ports || []).slice(0, 3).map((port: any) => port.port).join(", "),
+              ports: (asset.open_ports || []).slice(0, 3).map((port) => port.port).join(", "),
               risk_level: asset.risk_level || "low",
               risk_score: asset.risk_score || 0,
             },
@@ -410,10 +434,10 @@ export default function TopologyPage() {
     for (const inc of incidents) {
       const assetIds = (inc.affected_assets || [])
         .map((name: string) => {
-          const asset = assets.find((item: any) => item.hostname === name || item.asset_uid === name);
+          const asset = assets.find((item) => item.hostname === name || item.asset_uid === name);
           return asset ? String(asset.id) : null;
         })
-        .filter((id: string | null) => id && visibleIds.has(id)) as string[];
+        .filter((id: string | null): id is string => id !== null && visibleIds.has(id));
       for (let i = 0; i < assetIds.length; i++) {
         for (let j = i + 1; j < assetIds.length; j++) {
           nextEdges.push({
@@ -435,93 +459,180 @@ export default function TopologyPage() {
     return { nodes: nextNodes, edges: nextEdges };
   }, [assets, incidents, visibleAssets, visibleBySegment]);
 
+  useGSAP(() => {
+    const ctx = gsap.context(() => {
+      gsap.from(".observatory-hero > *", {
+        y: 40,
+        opacity: 0,
+        duration: 0.9,
+        stagger: 0.1,
+        ease: "power3.out",
+      });
+
+      gsap.from(".observatory-filter-bar", {
+        y: 24,
+        opacity: 0,
+        duration: 0.7,
+        ease: "power3.out",
+        delay: 0.3,
+      });
+
+      gsap.from(".observatory-shell > *", {
+        y: 50,
+        opacity: 0,
+        duration: 0.85,
+        stagger: 0.12,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: ".observatory-shell",
+          start: "top 85%",
+        },
+      });
+    }, pageRef);
+    return () => ctx.revert();
+  }, { scope: pageRef });
+
   if (assetsLoading || incidentsLoading) {
     return (
       <AppShell>
-        <RouteState type="loading" skeletonLayout="topology" title="Loading topology..." />
+        <RouteState type="loading" skeletonLayout="topology" title="Loading observatory..." />
       </AppShell>
     );
   }
 
   return (
     <AppShell>
-      <div className="page-head">
-        <div>
-          <div className="eyebrow">Network Topology</div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>Topology investigation</h1>
-          <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>Graph-based investigation by segment with risk rings and incident paths.</p>
-        </div>
-        <div className="filters">
-          {["all", "critical", "high", "medium", "low"].map((level) => (
-            <button className={`filter ${riskFilter === level ? "active" : ""}`} key={level} onClick={() => setRiskFilter(level)}>
-              {level}
-            </button>
-          ))}
+      <div ref={pageRef} className="observatory-page">
+        <section className="observatory-hero">
+          <div className="observatory-copy">
+            <div className="eyebrow">Topology observatory</div>
+            <h1>
+              Follow network pressure like a{" "}
+              <span className="inline-photo inline-photo-signal" aria-hidden="true" />
+              {" "}
+              mapped investigation, not a utility graph.
+            </h1>
+            <p>
+              The observatory keeps segment relationships, risk rings, incident paths, and asset drill-in readable in the same
+              chamber so the graph stays operationally useful under pressure.
+            </p>
+          </div>
+          <div className="observatory-overview">
+            <article>
+              <span>Visible assets</span>
+              <strong>{topologyStats.visible}</strong>
+              <small>Current filtered graph volume</small>
+            </article>
+            <article>
+              <span>Critical</span>
+              <strong>{topologyStats.critical}</strong>
+              <small>Immediate node pressure</small>
+            </article>
+            <article>
+              <span>Unauthorized</span>
+              <strong>{topologyStats.unauthorized}</strong>
+              <small>Outside approved state</small>
+            </article>
+            <article>
+              <span>Incident paths</span>
+              <strong>{railIncidents.length}</strong>
+              <small>Active correlated threads</small>
+            </article>
+          </div>
+        </section>
+
+        <section className="observatory-filter-bar">
+          <div className="filters">
+            {["all", "critical", "high", "medium", "low"].map((level) => (
+              <button className={`filter ${riskFilter === level ? "active" : ""}`} key={level} onClick={() => setRiskFilter(level)}>
+                {level}
+              </button>
+            ))}
+          </div>
           <select className="filter-select" value={segmentFilter} onChange={(event) => setSegmentFilter(event.target.value)}>
             <option value="all">All segments</option>
-            {segments.map((segment) => <option value={segment} key={segment}>{segment}</option>)}
+            {segments.map((segment) => (
+              <option value={segment} key={segment}>
+                {segment}
+              </option>
+            ))}
           </select>
-        </div>
-      </div>
-      <div className="topology-shell">
-        <section className="command-surface topology" style={{ position: "relative", overflow: "hidden", minHeight: 640 }}>
-          {nodes.length ? (
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              fitView
-              style={{ width: "100%", height: "100%" }}
-              onNodeClick={(_, node) => {
-                if (node.type === "assetNode") setSelectedAssetId(Number(node.id));
-              }}
-            >
-              <TopologyControls onReset={() => { setRiskFilter("all"); setSegmentFilter("all"); setSelectedAssetId(null); }} />
-              <Background color="rgba(244,241,234,.08)" gap={22} />
-              <MiniMap nodeColor={(node) => node.type === "segmentNode" ? "rgba(244,241,234,0.3)" : "#D99A2B"} maskColor="rgba(8,11,16,.72)" />
-              <Controls />
-            </ReactFlow>
-          ) : (
-            <div style={{ display: "grid", placeItems: "center", height: "100%" }}>
-              <RouteState
-                type="empty"
-                title="No topology nodes match these filters"
-                message="Clear the risk or segment filter to restore graph context."
-                actionLabel="Reset filters"
-                onAction={() => { setRiskFilter("all"); setSegmentFilter("all"); }}
-              />
-            </div>
-          )}
         </section>
-        <aside className="topology-rail">
-          {selectedAssetId ? (
-            <SelectedAssetRail assetId={selectedAssetId} onClose={() => setSelectedAssetId(null)} />
-          ) : (
-            <>
-              <section className="command-surface">
-                <div style={{ padding: 16 }}>
+
+        <div className="observatory-shell">
+          <section className="command-surface topology observatory-stage" style={{ position: "relative", overflow: "hidden", minHeight: 680 }}>
+            <div className="observatory-stage-head">
+              <div>
+                <div className="eyebrow">Mapped system</div>
+                <h2>Segment-to-asset relationships with incident overlays</h2>
+              </div>
+              <span className="chip">{nodes.length} nodes rendered</span>
+            </div>
+            {nodes.length ? (
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                fitView
+                style={{ width: "100%", height: "100%" }}
+                onNodeClick={(_, node) => {
+                  if (node.type === "assetNode") setSelectedAssetId(Number(node.id));
+                }}
+              >
+                <TopologyControls onReset={() => { setRiskFilter("all"); setSegmentFilter("all"); setSelectedAssetId(null); }} />
+                <Background color="rgba(244,241,234,.08)" gap={22} />
+                <MiniMap nodeColor={(node) => node.type === "segmentNode" ? "rgba(244,241,234,0.3)" : "#D99A2B"} maskColor="rgba(8,11,16,.72)" />
+                <Controls />
+              </ReactFlow>
+            ) : (
+              <div style={{ display: "grid", placeItems: "center", height: "100%" }}>
+                <RouteState
+                  type="empty"
+                  title="No topology nodes match these filters"
+                  message="Clear the risk or segment filter to restore graph context."
+                  actionLabel="Reset filters"
+                  onAction={() => { setRiskFilter("all"); setSegmentFilter("all"); }}
+                />
+              </div>
+            )}
+          </section>
+
+          <aside className="observatory-rail">
+            {selectedAssetId ? (
+              <SelectedAssetRail assetId={selectedAssetId} onClose={() => setSelectedAssetId(null)} />
+            ) : (
+              <>
+                <section className="command-surface observatory-panel">
                   <div className="eyebrow">Investigation rail</div>
-                  <h2 style={{ marginTop: 8, fontSize: 14, fontWeight: 700 }}>Incident path context</h2>
-                  <div className="topology-stat-grid">
-                    <span><strong className="mono">{topologyStats.visible}</strong><small>visible assets</small></span>
-                    <span><strong className="mono">{topologyStats.critical}</strong><small>critical</small></span>
-                    <span><strong className="mono">{topologyStats.unauthorized}</strong><small>unauthorized</small></span>
-                  </div>
-                </div>
-              </section>
-              <section className="command-surface">
-                <div style={{ padding: 16 }}>
-                  <div className="eyebrow">Aether handoff</div>
-                  <p className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-                    Select an asset node to inspect its Aether ticket, evidence timeline, and risk decision.
+                  <p className="muted" style={{ marginTop: 10, fontSize: 12, lineHeight: 1.55 }}>
+                    Select an asset node to inspect its evidence, risk decision, open ports, and Aether-linked incident context.
                   </p>
-                </div>
-              </section>
-              <section className="command-surface">
-                <div style={{ padding: 16 }}>
+                </section>
+
+                <section className="command-surface observatory-panel">
+                  <div className="eyebrow">Segment dossier</div>
+                  <div className="observatory-segment-list">
+                    {segmentSnapshot.length ? segmentSnapshot.map((segment) => (
+                      <button
+                        key={segment.segment}
+                        type="button"
+                        className={`observatory-segment-row ${segmentFilter === segment.segment ? "active" : ""}`}
+                        onClick={() => setSegmentFilter(segment.segment)}
+                      >
+                        <div>
+                          <strong>{segment.segment}</strong>
+                          <small>{segment.total} visible assets</small>
+                        </div>
+                        <span>{segment.elevated} elevated</span>
+                      </button>
+                    )) : <p className="muted" style={{ fontSize: 12 }}>No segment snapshot available.</p>}
+                  </div>
+                </section>
+
+                <section className="command-surface observatory-panel">
                   <div className="eyebrow">Active incident paths</div>
                   <div className="metric-list" style={{ marginTop: 12 }}>
-                    {railIncidents.length ? railIncidents.map((incident: any) => (
+                    {railIncidents.length ? railIncidents.map((incident) => (
                       <div className="metric-row" key={incident.id}>
                         <span style={{ minWidth: 0 }}>
                           <strong style={{ fontSize: 12 }}>{incident.incident_uid}</strong>
@@ -532,22 +643,22 @@ export default function TopologyPage() {
                       </div>
                     )) : <p className="muted" style={{ fontSize: 12 }}>No incident paths are currently active.</p>}
                   </div>
-                </div>
-              </section>
-              <section className="command-surface">
-                <div style={{ padding: 16 }}>
-                  <div className="eyebrow">Getting started</div>
+                </section>
+
+                <section className="command-surface observatory-panel">
+                  <div className="eyebrow">Get the graph moving</div>
                   <p className="muted" style={{ marginTop: 10, fontSize: 12, lineHeight: 1.5 }}>
-                    The topology graph updates automatically when scans discover new assets. Run a demo scan to see the graph populate.
+                    The observatory updates from live scan output. Use the command route to run a demo or authorized lab scan and
+                    repopulate the mapped environment.
                   </p>
                   <Link href="/command" className="btn primary" style={{ marginTop: 12, width: "100%", justifyContent: "center", textDecoration: "none", fontSize: 12 }}>
                     <Play size={13} /> Open command center
                   </Link>
-                </div>
-              </section>
-            </>
-          )}
-        </aside>
+                </section>
+              </>
+            )}
+          </aside>
+        </div>
       </div>
     </AppShell>
   );

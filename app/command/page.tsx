@@ -1,206 +1,200 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { motion } from "framer-motion";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
-  AlertTriangle,
+  ArrowRight,
   ArrowUpRight,
   CheckCircle2,
-  Factory,
-  FileText,
-  Network,
+  ExternalLink,
   Play,
+  Radar,
   Wifi,
   XCircle,
-  Zap,
-  Radar,
-  ShieldAlert,
-  Activity,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { AssetDetailDrawer } from "@/components/shared/AssetDetailDrawer";
 import { RiskBadge } from "@/components/shared/RiskBadge";
 import { RouteState } from "@/components/shared/RouteState";
-import { useCommandCenter, useRunDemoScan, useRunLabScan } from "@/lib/hooks/use-command-center";
 import { useAssets } from "@/lib/hooks/use-assets";
-import { useIncidents } from "@/lib/hooks/use-incidents";
+import { useCommandCenter, useRunDemoScan, useRunLabScan, useScanProfiles } from "@/lib/hooks/use-command-center";
 import { useEvents } from "@/lib/hooks/use-events";
+import { useIncidents } from "@/lib/hooks/use-incidents";
 import { useForgeStore } from "@/lib/store";
-import { withDemoData, demoAssets, demoEvents, demoKpis } from "@/lib/demo";
-import type { Asset, SecurityEvent, Incident } from "@/lib/types";
+import type { Asset, CommandSummaryData, Incident, ScanProfile, SecurityEvent } from "@/lib/types";
 
-const sectionMotion = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.3, ease: "easeOut" as const },
-};
+gsap.registerPlugin(ScrollTrigger);
 
-/* ================================================================
-   COMMAND HERO — Industrial instrument panel with grouped KPIs
-   ================================================================ */
-function CommandHero() {
+function formatTimestamp(value?: string | null) {
+  return value ? new Date(value).toLocaleString() : "No scan recorded";
+}
+
+function getActiveIncident(incidents: Incident[]) {
+  return incidents
+    .filter((incident) => incident.status !== "Closed" && incident.status !== "Resolved")
+    .sort((a, b) => b.risk_score - a.risk_score)[0];
+}
+
+function buildSignalDeck({
+  command,
+  topIncident,
+  assets,
+  events,
+}: {
+  command?: CommandSummaryData;
+  topIncident?: Incident;
+  assets: Asset[];
+  events: SecurityEvent[];
+}) {
+  return [
+    {
+      quote: topIncident
+        ? `“${topIncident.title} is still the loudest thread in the room, and the response path already knows which assets are attached.”`
+        : "“The response lane is clear. Run a safe discovery pass to seed the command system with real objects.”",
+      label: topIncident?.incident_uid || "Command brief",
+      detail: topIncident
+        ? `${topIncident.affected_assets.length} affected assets · ${topIncident.confidence_score}% confidence`
+        : "No open incident in focus",
+      tone: "incident",
+    },
+    {
+      quote:
+        `“${command?.kpis?.unauthorized_count || 0} unauthorized objects and ${command?.kpis?.critical_count || 0} critical decisions are shaping the next containment move.”`,
+      label: "Risk posture",
+      detail: `${assets.length} assets visible · ${events.length} recent events`,
+      tone: "risk",
+    },
+    {
+      quote:
+        command?.recommended_action
+          ? `“${command.recommended_action}”`
+          : "“Once the first scan completes, recommended containment language will surface here for the next shift.”",
+      label: "Response guidance",
+      detail: command?.data_freshness ? `Data freshness: ${command.data_freshness}` : "Awaiting telemetry",
+      tone: "response",
+    },
+  ];
+}
+
+function CinematicHero({
+  command,
+  topIncident,
+}: {
+  command?: CommandSummaryData;
+  topIncident?: Incident;
+}) {
   const heroRef = useRef<HTMLElement>(null);
-  const { data, isLoading } = useCommandCenter();
-  const kpis = withDemoData(data?.kpis, demoKpis.kpis);
 
   useGSAP(() => {
     const ctx = gsap.context(() => {
-      gsap.from(".hero-stat-item", {
-        y: 14,
+      gsap.from(".command-cinema-copy > *", {
+        y: 40,
         opacity: 0,
-        duration: 0.3,
-        stagger: 0.05,
-        ease: "power2.out",
-        delay: 0.08,
+        duration: 0.9,
+        stagger: 0.1,
+        ease: "power3.out",
+      });
+
+      gsap.from(".command-cinema-figure, .command-cinema-note", {
+        y: 60,
+        opacity: 0,
+        duration: 1,
+        stagger: 0.12,
+        ease: "power3.out",
+        delay: 0.15,
       });
     }, heroRef);
     return () => ctx.revert();
   }, { scope: heroRef });
 
-  const stats = [
-    { label: "Critical incidents", value: kpis?.critical_count ?? 0, color: "var(--critical)", icon: ShieldAlert },
-    { label: "High risk assets", value: kpis?.high_count ?? 0, color: "var(--high)", icon: AlertTriangle },
-    { label: "Active scans", value: kpis?.active_scans ?? 0, color: "var(--cyan)", icon: Radar },
-    { label: "Unacknowledged alerts", value: kpis?.open_incidents ?? 0, color: "var(--amber)", icon: Activity },
-  ];
-
   return (
-    <section
-      ref={heroRef}
-      className="command-surface"
-      style={{
-        position: "relative",
-        overflow: "hidden",
-        minHeight: 220,
-        display: "grid",
-        alignItems: "end",
-        padding: 0,
-        marginBottom: 14,
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: "url(https://picsum.photos/seed/forge-command-room/1400/1800)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          filter: "grayscale(1) contrast(1.25) brightness(0.32)",
-        }}
-      />
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(8,11,16,0.15) 0%, rgba(8,11,16,0.92) 100%)" }} />
-      <div style={{ position: "relative", zIndex: 1, padding: 24 }}>
-        <div style={{ marginBottom: 18 }}>
-          <div className="eyebrow" style={{ marginBottom: 6 }}>Industrial risk command</div>
-          <h1
-            style={{
-              fontSize: "clamp(1.8rem, 3.4vw, 2.8rem)",
-              lineHeight: 1.08,
-              letterSpacing: "-0.03em",
-              maxWidth: 560,
-              fontWeight: 800,
-              textWrap: "balance",
-            }}
-          >
-            Respond before production stops
-          </h1>
+    <section ref={heroRef} className="command-cinema">
+      <div className="command-cinema-media" />
+      <div className="command-cinema-wash" />
+      <div className="command-cinema-copy">
+        <div className="hero-kicker">ForgeSentinel industrial command system</div>
+        <h1 className="command-cinema-title" style={{ maxWidth: "72rem" }}>
+          Map the
+          {" "}
+          <span className="inline-photo inline-photo-signal" aria-hidden="true" />
+          {" "}
+          blast radius before the plant feels it.
+        </h1>
+        <p className="command-cinema-body">
+          The command layer now centers the response story first: which incident is loudest, which assets are attached,
+          what the next recommendation says, and how fast the team can move without opening five disconnected views.
+        </p>
+        <div className="hero-actions">
+          <Link href="/topology" className="taste-btn taste-btn-primary">
+            Follow the topology
+            <ArrowRight size={17} />
+          </Link>
+          <Link href="/incidents" className="taste-btn">
+            Open incident workbench
+            <ArrowUpRight size={17} />
+          </Link>
         </div>
-
-        <div
-          className="metric-group"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: 2,
-            background: "rgba(0,0,0,0.35)",
-            border: "1px solid rgba(244,241,234,0.1)",
-            borderRadius: 14,
-            padding: 3,
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.label}
-                className="hero-stat-item"
-                style={{
-                  padding: "14px 16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  borderRadius: 12,
-                  background: "rgba(13,17,24,0.55)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Icon size={13} color={stat.color} />
-                  <span
-                    className="muted"
-                    style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}
-                  >
-                    {stat.label}
-                  </span>
-                </div>
-                <span style={{ fontSize: 28, fontWeight: 800, color: stat.color, lineHeight: 1, fontFamily: "var(--font-mono, 'JetBrains Mono'), monospace" }}>
-                  {isLoading ? "—" : stat.value}
-                </span>
-              </div>
-            );
-          })}
+      </div>
+      <div className="command-cinema-stage">
+        <div className="command-cinema-figure">
+          <div className="command-cinema-figure-label">Response in focus</div>
+          <strong>{topIncident?.incident_uid || "Awaiting incident signal"}</strong>
+          <p>
+            {topIncident?.title ||
+              "Run a safe discovery scan to establish asset context, exposure findings, and the first response thread."}
+          </p>
+        </div>
+        <div className="command-cinema-note">
+          <span>{command?.data_freshness ? `Data ${command.data_freshness}` : "Telemetry pending"}</span>
+          <strong>{command?.recommended_action || "Recommendation language appears here once the backend correlates the first incident."}</strong>
         </div>
       </div>
     </section>
   );
 }
 
-/* ================================================================
-   RISK QUEUE — Prioritized asset table with skeleton & empty
-   ================================================================ */
-function RiskQueue() {
-  const { setSelectedAssetId, riskFilter, setRiskFilter } = useForgeStore();
-  const { data, isLoading, error } = useAssets();
-  const panelRef = useRef<HTMLElement>(null);
-  const hasAnimated = useRef(false);
-
-  const rawItems: Asset[] = withDemoData(data?.items, demoAssets);
-  const items = rawItems
-    .filter((a) => riskFilter === "all" || (a.risk_level || "low") === riskFilter)
-    .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0));
-
-  useEffect(() => {
-    if (items.length > 0 && panelRef.current && !hasAnimated.current) {
-      hasAnimated.current = true;
-      gsap.from(panelRef.current.querySelectorAll("tbody tr"), {
-        y: 6,
-        opacity: 0,
-        duration: 0.24,
-        stagger: 0.012,
-        ease: "power2.out",
-      });
-    }
-  }, [items.length]);
+function RiskQueue({
+  assets,
+  isLoading,
+  hasError,
+}: {
+  assets: Asset[];
+  isLoading: boolean;
+  hasError: boolean;
+}) {
+  const { riskFilter, setRiskFilter, setSelectedAssetId } = useForgeStore();
+  const filteredAssets = useMemo(
+    () => assets
+      .filter((asset) => riskFilter === "all" || (asset.risk_level || "low") === riskFilter)
+      .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0)),
+    [assets, riskFilter],
+  );
 
   if (isLoading) return <RouteState type="loading" skeletonLayout="table" title="Loading risk queue" />;
-  if (error) return <RouteState type="error" title="Risk queue unavailable" message="Failed to load assets from API." actionLabel="Retry" onAction={() => window.location.reload()} />;
+  if (hasError) {
+    return (
+      <RouteState
+        type="error"
+        title="Risk queue unavailable"
+        message="The asset feed could not be loaded from the API."
+        actionLabel="Reload"
+        onAction={() => window.location.reload()}
+      />
+    );
+  }
 
   return (
-    <motion.section
-      ref={panelRef}
-      className="command-surface"
-      style={{ minHeight: 320, minWidth: 0, overflow: "hidden", display: "grid", gridTemplateRows: "auto 1fr" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.05 }}
-    >
-      <div style={{ padding: "16px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+    <section className="command-surface" style={{ minHeight: "100%", overflow: "hidden" }}>
+      <div style={{ padding: "22px 22px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
         <div>
-          <div className="eyebrow">Prioritized Risk Queue</div>
-          <h2 style={{ fontSize: 15, fontWeight: 700, marginTop: 4, letterSpacing: "-0.01em" }}>Queue by security risk decision</h2>
+          <div className="eyebrow">Priority queue</div>
+          <h3 style={{ fontSize: 22, lineHeight: 1.02, letterSpacing: "-0.04em", marginTop: 8 }}>
+            Lead with the assets that can actually stop production.
+          </h3>
         </div>
         <div className="filters">
           {["all", "critical", "high", "medium", "low"].map((level) => (
@@ -215,56 +209,42 @@ function RiskQueue() {
         </div>
       </div>
 
-      {items.length === 0 ? (
-        <RouteState
-          type="empty"
-          title="No assets in risk queue"
-          message="Run a scan to discover and assess assets."
-          actionLabel="Run demo scan"
-          onAction={() => {}}
-        />
+      {filteredAssets.length === 0 ? (
+        <div style={{ padding: "0 22px 22px" }}>
+          <RouteState
+            type="empty"
+            title="No assets in the queue"
+            message="Run a safe demo scan or an authorized lab scan to seed real asset records."
+          />
+        </div>
       ) : (
-        <div className="table-wrap" style={{ maxHeight: 480, overflowX: "auto", borderRadius: 0, border: 0, borderTop: "1px solid var(--border)" }}>
-          <table style={{ minWidth: 560, fontSize: 12 }}>
+        <div className="table-wrap" style={{ maxHeight: 520, overflowX: "auto", borderRadius: 0, border: 0, borderTop: "1px solid var(--border)" }}>
+          <table style={{ minWidth: 700, fontSize: 12 }}>
             <thead>
               <tr>
                 <th>Risk</th>
-                <th>Title</th>
-                <th>Asset / Site</th>
-                <th>Detected</th>
-                <th>Status</th>
+                <th>Hostname</th>
+                <th>Segment</th>
+                <th>Ports</th>
+                <th>Observed</th>
+                <th>State</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((asset) => (
+              {filteredAssets.slice(0, 12).map((asset) => (
                 <tr key={asset.id} onClick={() => setSelectedAssetId(asset.id)}>
+                  <td><RiskBadge level={asset.risk_level || "low"} score={asset.risk_score} /></td>
                   <td>
-                    <RiskBadge level={asset.risk_level || "low"} score={asset.risk_score} />
-                  </td>
-                  <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     <strong>{asset.hostname}</strong>
+                    <span className="muted" style={{ display: "block", marginTop: 3, fontSize: 10 }}>{asset.asset_uid}</span>
                   </td>
-                  <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    <span className="mono" style={{ fontSize: 11 }}>{asset.asset_uid}</span>
-                    <span className="muted" style={{ fontSize: 10, display: "block", marginTop: 2 }}>{asset.site}</span>
-                  </td>
+                  <td>{asset.segment}</td>
                   <td className="mono" style={{ fontSize: 11 }}>
-                    {asset.last_seen ? new Date(asset.last_seen).toLocaleString() : "—"}
+                    {(asset.open_ports || []).slice(0, 3).map((port) => port.port).join(", ") || "—"}
                   </td>
+                  <td className="mono" style={{ fontSize: 11 }}>{formatTimestamp(asset.last_seen)}</td>
                   <td>
-                    <span
-                      className="chip"
-                      style={{
-                        fontSize: 10,
-                        ...(asset.status === "Online"
-                          ? { background: "rgba(34,197,94,.1)", borderColor: "rgba(34,197,94,.3)", color: "var(--low)" }
-                          : asset.status === "Offline"
-                            ? { background: "rgba(239,68,68,.1)", borderColor: "rgba(239,68,68,.3)", color: "var(--critical)" }
-                            : {}),
-                      }}
-                    >
-                      {asset.status}
-                    </span>
+                    <span className="chip" style={{ fontSize: 10 }}>{asset.authorization_state}</span>
                   </td>
                 </tr>
               ))}
@@ -272,276 +252,294 @@ function RiskQueue() {
           </table>
         </div>
       )}
-    </motion.section>
+    </section>
   );
 }
 
-/* ================================================================
-   EVENT STREAM — Live telemetry with skeleton & empty
-   ================================================================ */
-function EventStream() {
-  const { data: eventsData, isLoading } = useEvents(20, 0);
-  const { data: assetsData } = useAssets();
-  const panelRef = useRef<HTMLElement>(null);
-  const hasAnimated = useRef(false);
+function ProfileAccordion({
+  profiles,
+  isLoading,
+  hasError,
+  activeProfile,
+  setActiveProfile,
+}: {
+  profiles: ScanProfile[];
+  isLoading: boolean;
+  hasError: boolean;
+  activeProfile: string;
+  setActiveProfile: (profile: string) => void;
+}) {
+  const { scanProfile, setScanProfile } = useForgeStore();
 
-  const events: SecurityEvent[] = withDemoData(eventsData?.items, demoEvents);
-  const assetMap = new Map<number, Asset>((withDemoData(assetsData?.items, demoAssets)).map((a: Asset) => [a.id, a]));
-
-  useEffect(() => {
-    if (events.length > 0 && panelRef.current && !hasAnimated.current) {
-      hasAnimated.current = true;
-      gsap.from(panelRef.current.querySelectorAll("tbody tr"), {
-        y: 6,
-        opacity: 0,
-        duration: 0.24,
-        stagger: 0.012,
-        ease: "power2.out",
-      });
-    }
-  }, [events.length]);
-
-  if (isLoading) return <RouteState type="loading" skeletonLayout="events" title="Loading events" />;
-
-  return (
-    <motion.section
-      ref={panelRef}
-      className="command-surface"
-      style={{ minHeight: 280, minWidth: 0, overflow: "hidden" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.1 }}
-    >
-      <div style={{ padding: "16px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <div className="eyebrow">Live Event Stream</div>
-          <h2 style={{ fontSize: 15, fontWeight: 700, marginTop: 4, letterSpacing: "-0.01em" }}>Security events</h2>
-        </div>
-        <span className="chip">
-          <Wifi size={12} /> live
-        </span>
-      </div>
-      {events.length === 0 ? (
-        <RouteState type="empty" title="No events recorded" message="Events appear when scans discover new assets or risks change." />
-      ) : (
-        <div className="table-wrap" style={{ maxHeight: 340, overflow: "auto", borderRadius: 0, border: 0, borderTop: "1px solid var(--border)" }}>
-          <table style={{ minWidth: 720, fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th>Severity</th>
-                <th>Time</th>
-                <th>Asset</th>
-                <th>Event</th>
-                <th>Source</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((event) => (
-                <tr key={event.id}>
-                  <td><RiskBadge level={event.severity} /></td>
-                  <td className="mono" style={{ fontSize: 11 }}>{new Date(event.observed_at).toLocaleString()}</td>
-                  <td>
-                    {assetMap.get(event.asset_id || 0)?.hostname || event.asset_id ? `Asset ${event.asset_id}` : "—"}
-                  </td>
-                  <td>{event.event_type}</td>
-                  <td>{event.source}</td>
-                  <td><span className="chip" style={{ fontSize: 10 }}>New</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </motion.section>
-  );
-}
-
-/* ================================================================
-   EXPOSURE BY PORT — Chart with skeleton & empty
-   ================================================================ */
-function ExposureByPort() {
-  const { data } = useAssets();
-  const assets: Asset[] = withDemoData(data?.items, demoAssets);
-
-  const portCounts: Record<string, { count: number; risk: number }> = {};
-  for (const asset of assets) {
-    for (const port of asset.open_ports || []) {
-      const key = `${port.port} ${port.service}`;
-      if (!portCounts[key]) portCounts[key] = { count: 0, risk: 0 };
-      portCounts[key].count += 1;
-      const r = asset.risk_score || 0;
-      if (r > portCounts[key].risk) portCounts[key].risk = r;
-    }
+  if (isLoading) return <RouteState type="loading" skeletonLayout="cards" title="Loading scan profiles" />;
+  if (hasError) {
+    return (
+      <RouteState
+        type="error"
+        title="Scan profiles unavailable"
+        message="The scanning service profile catalog could not be loaded."
+        actionLabel="Reload"
+        onAction={() => window.location.reload()}
+      />
+    );
   }
-  const chartData = Object.entries(portCounts)
-    .map(([port, { count, risk }]) => ({ port, count, risk }))
-    .sort((a, b) => b.risk - a.risk)
-    .slice(0, 8);
 
-  if (!data?.items && !assets.length) {
-    return <RouteState type="loading" skeletonLayout="chart" title="Loading exposure data" />;
+  if (profiles.length === 0) {
+    return (
+      <RouteState
+        type="empty"
+        title="No scan profiles available"
+        message="The scanner profile catalog is empty, so no authorized lab scan profiles can be selected."
+      />
+    );
   }
 
   return (
-    <motion.section
-      className="command-surface"
-      style={{ minWidth: 0, overflow: "hidden" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.1 }}
-    >
-      <div style={{ padding: "16px 16px 10px" }}>
-        <div className="eyebrow">Top Exposed Services</div>
+    <section className="command-surface" style={{ minHeight: "100%", overflow: "hidden" }}>
+      <div style={{ padding: "22px 22px 12px" }}>
+        <div className="eyebrow">Horizontal control lanes</div>
+        <h3 style={{ fontSize: 22, lineHeight: 1.02, letterSpacing: "-0.04em", marginTop: 8 }}>
+          Pick the right scan temperament before the packets move.
+        </h3>
       </div>
-      {chartData.length === 0 ? (
-        <div style={{ padding: "0 16px 16px" }}>
-          <RouteState type="empty" title="No exposed services" message="Run a scan to discover open ports and services." />
-        </div>
-      ) : (
-        <div style={{ padding: "0 16px 16px" }}>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={chartData}>
-              <XAxis dataKey="port" stroke="#8892A3" fontSize={10} angle={-20} textAnchor="end" height={50} />
-              <YAxis stroke="#8892A3" fontSize={11} />
-              <Tooltip
-                contentStyle={{
-                  background: "#121824",
-                  border: "1px solid rgba(148,163,184,.18)",
-                  borderRadius: 14,
-                }}
-              />
-              <Bar dataKey="risk" fill="#D99A2B" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </motion.section>
-  );
-}
-
-/* ================================================================
-   TOPOLOGY PREVIEW — Compact asset list with skeleton & empty
-   ================================================================ */
-function TopologyPreview() {
-  const { setSelectedAssetId } = useForgeStore();
-  const { data, isLoading } = useAssets();
-  const assets: Asset[] = withDemoData(data?.items, demoAssets).slice(0, 6);
-
-  if (isLoading) return <RouteState type="loading" skeletonLayout="topology" title="Loading topology" />;
-
-  return (
-    <motion.section
-      className="command-surface"
-      style={{ minWidth: 0, overflow: "hidden" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.12 }}
-    >
-      <div style={{ padding: "16px 16px 10px" }}>
-        <div className="eyebrow">Topology Preview</div>
-      </div>
-      <div style={{ padding: "0 16px 16px", display: "grid", gap: 6 }}>
-        {assets.length === 0 ? (
-          <RouteState type="empty" title="No topology data" message="Discover assets to build the topology graph." />
-        ) : (
-          assets.map((asset) => (
-            <div
-              key={asset.id}
-              onClick={() => setSelectedAssetId(asset.id)}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid var(--border)",
-                cursor: "pointer",
-                background: asset.risk_level === "critical" ? "rgba(239,68,68,.08)" : "rgba(244,241,234,0.02)",
-                minWidth: 0,
-                overflow: "hidden",
-                transition: "background 0.2s ease, border-color 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(217,154,43,0.35)";
-                (e.currentTarget as HTMLDivElement).style.background = asset.risk_level === "critical" ? "rgba(239,68,68,.12)" : "rgba(244,241,234,0.05)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)";
-                (e.currentTarget as HTMLDivElement).style.background = asset.risk_level === "critical" ? "rgba(239,68,68,.08)" : "rgba(244,241,234,0.02)";
+      <div className="ops-accordion">
+        {profiles.map((profile, index) => {
+          const isActive = activeProfile === profile.name;
+          const isSelected = scanProfile === profile.name;
+          return (
+            <button
+              key={profile.name}
+              type="button"
+              className={`ops-accordion-panel ${isActive ? "active" : ""}`}
+              onMouseEnter={() => setActiveProfile(profile.name)}
+              onFocus={() => setActiveProfile(profile.name)}
+              onClick={() => {
+                setActiveProfile(profile.name);
+                setScanProfile(profile.name);
               }}
             >
-              <div style={{ minWidth: 0, overflow: "hidden" }}>
-                <strong style={{ fontSize: 12, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {asset.hostname}
-                </strong>
-                <div className="mono muted" style={{ fontSize: 10, marginTop: 2 }}>{asset.ip_address}</div>
+              <div className="ops-accordion-media" data-profile={profile.name} />
+              <div className="ops-accordion-overlay" />
+              <div className="ops-accordion-content">
+                <span className="ops-accordion-index">{`0${index + 1}`}</span>
+                <strong>{profile.name.replace(/_/g, " ")}</strong>
+                <p>{profile.description}</p>
+                <div className="ops-accordion-meta">
+                  <span>{profile.port_count} ports</span>
+                  <span>{profile.max_hosts} hosts</span>
+                  <span>{profile.rate_limit_per_second}/sec</span>
+                </div>
+                <div className="ops-accordion-meta">
+                  <span>{profile.ot_protocol_probes ? "OT aware" : "IT leaning"}</span>
+                  <span>{profile.banner_grab ? "Banner grab" : "No banner grab"}</span>
+                </div>
+                {isSelected ? <span className="chip" style={{ width: "fit-content", marginTop: 14 }}>Selected for lab mode</span> : null}
               </div>
-              <RiskBadge level={asset.risk_level || "low"} score={asset.risk_score} />
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function EventLedger({
+  events,
+  assets,
+  isLoading,
+  hasError,
+}: {
+  events: SecurityEvent[];
+  assets: Asset[];
+  isLoading: boolean;
+  hasError: boolean;
+}) {
+  const assetMap = useMemo(() => new Map<number, Asset>(assets.map((asset) => [asset.id, asset])), [assets]);
+
+  if (isLoading) return <RouteState type="loading" skeletonLayout="events" title="Loading live events" />;
+  if (hasError) {
+    return (
+      <RouteState
+        type="error"
+        title="Event stream unavailable"
+        message="The event ledger could not be loaded from the API."
+        actionLabel="Reload"
+        onAction={() => window.location.reload()}
+      />
+    );
+  }
+
+  return (
+    <section className="command-surface" style={{ minHeight: "100%", overflow: "hidden" }}>
+      <div style={{ padding: "22px 22px 12px", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div>
+          <div className="eyebrow">Event ledger</div>
+          <h3 style={{ fontSize: 22, lineHeight: 1.02, letterSpacing: "-0.04em", marginTop: 8 }}>
+            Read the signal without losing the asset behind it.
+          </h3>
+        </div>
+        <span className="chip">
+          <Wifi size={12} />
+          Live feed
+        </span>
+      </div>
+      <div style={{ padding: "0 22px 22px", display: "grid", gap: 10 }}>
+        {events.length === 0 ? (
+          <RouteState type="empty" title="No events recorded yet" message="Events will appear here once the scanner discovers or correlates activity." />
+        ) : (
+          events.slice(0, 6).map((event) => (
+            <div key={event.id} className="taste-event">
+              <span className="mono muted">{new Date(event.observed_at).toLocaleTimeString()}</span>
+              <strong>{event.event_type}</strong>
+              <span>{assetMap.get(event.asset_id || 0)?.hostname || event.source}</span>
             </div>
           ))
         )}
       </div>
-    </motion.section>
+    </section>
   );
 }
 
-/* ================================================================
-   SCAN STATUS — Run scan panel
-   ================================================================ */
-function ScanStatusPanel() {
-  const { labMode, setLabMode } = useForgeStore();
+function ExposureField({
+  assets,
+  isLoading,
+  hasError,
+}: {
+  assets: Asset[];
+  isLoading: boolean;
+  hasError: boolean;
+}) {
+  const chartData = useMemo(() => {
+    const counts: Record<string, { count: number; risk: number }> = {};
+    for (const asset of assets) {
+      for (const port of asset.open_ports || []) {
+        const key = `${port.port} ${port.service}`;
+        if (!counts[key]) counts[key] = { count: 0, risk: 0 };
+        counts[key].count += 1;
+        counts[key].risk = Math.max(counts[key].risk, asset.risk_score || 0);
+      }
+    }
+    return Object.entries(counts)
+      .map(([port, value]) => ({ port, count: value.count, risk: value.risk }))
+      .sort((a, b) => b.risk - a.risk)
+      .slice(0, 8);
+  }, [assets]);
+
+  if (isLoading) return <RouteState type="loading" skeletonLayout="chart" title="Loading exposure field" />;
+  if (hasError) {
+    return (
+      <RouteState
+        type="error"
+        title="Exposure field unavailable"
+        message="The service exposure data could not be loaded from the API."
+        actionLabel="Reload"
+        onAction={() => window.location.reload()}
+      />
+    );
+  }
+
+  return (
+    <section className="command-surface" style={{ minHeight: "100%", overflow: "hidden" }}>
+      <div style={{ padding: "22px 22px 12px" }}>
+        <div className="eyebrow">Exposure field</div>
+        <h3 style={{ fontSize: 22, lineHeight: 1.02, letterSpacing: "-0.04em", marginTop: 8 }}>
+          See which services keep surfacing at the sharpest edge.
+        </h3>
+      </div>
+      {chartData.length === 0 ? (
+        <div style={{ padding: "0 22px 22px" }}>
+          <RouteState type="empty" title="No exposed services recorded" message="Run a scan to populate port and service evidence." />
+        </div>
+      ) : (
+        <div style={{ padding: "0 22px 22px" }}>
+          <ResponsiveContainer width="100%" height={230}>
+            <BarChart data={chartData}>
+              <XAxis dataKey="port" stroke="#8892A3" fontSize={10} angle={-20} textAnchor="end" height={56} />
+              <YAxis stroke="#8892A3" fontSize={11} />
+              <Tooltip
+                contentStyle={{
+                  background: "#101620",
+                  border: "1px solid rgba(148,163,184,.18)",
+                  borderRadius: 18,
+                }}
+              />
+              <Bar dataKey="risk" fill="#d99a2b" radius={[10, 10, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OperationsControl({
+  command,
+  topIncident,
+}: {
+  command?: CommandSummaryData;
+  topIncident?: Incident;
+}) {
+  const {
+    labMode,
+    scanTargetCidr,
+    scanProfile,
+    setLabMode,
+    setScanTargetCidr,
+  } = useForgeStore();
   const demoScan = useRunDemoScan();
   const labScan = useRunLabScan();
-  const [profile, setProfile] = useState(labMode ? "lab" : "demo");
-  const [scope, setScope] = useState("192.168.1.0/24");
-
   const isPending = demoScan.isPending || labScan.isPending;
   const isSuccess = demoScan.isSuccess || labScan.isSuccess;
   const isError = demoScan.isError || labScan.isError;
-  const scanResult = demoScan.data || labScan.data;
+  const result = demoScan.data || labScan.data;
 
-  const handleRun = () => {
-    if (profile === "lab") {
-      labScan.mutate(scope);
-    } else {
-      demoScan.mutate();
+  function handleRun() {
+    if (labMode) {
+      labScan.mutate({
+        targetCidr: scanTargetCidr,
+        profile: scanProfile,
+      });
+      return;
     }
-  };
+    demoScan.mutate();
+  }
 
   return (
-    <motion.section
-      className="command-surface"
-      style={{ minWidth: 0, overflow: "hidden" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.15 }}
-    >
-      <div style={{ padding: "16px 16px 10px" }}>
-        <div className="eyebrow">Run Scan</div>
+    <section className="command-surface" style={{ minHeight: "100%", overflow: "hidden" }}>
+      <div style={{ padding: "22px 22px 12px" }}>
+        <div className="eyebrow">Operations control</div>
+        <h3 style={{ fontSize: 22, lineHeight: 1.02, letterSpacing: "-0.04em", marginTop: 8 }}>
+          Keep the next scan, the current incident, and the response handoff in one lane.
+        </h3>
       </div>
-      <div style={{ padding: "0 16px 16px", display: "grid", gap: 10 }}>
-        <div style={{ display: "grid", gap: 5 }}>
-          <label className="muted" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Profile</label>
-          <select
-            className="filter-select"
-            style={{ width: "100%" }}
-            value={profile}
-            onChange={(e) => { setProfile(e.target.value); setLabMode(e.target.value === "lab"); }}
-          >
-            <option value="demo">Safe demo</option>
-            <option value="lab">Lab mode</option>
-          </select>
+      <div style={{ padding: "0 22px 22px", display: "grid", gap: 12 }}>
+        <div className="filters">
+          <button className={`filter ${!labMode ? "active" : ""}`} onClick={() => setLabMode(false)}>Safe demo</button>
+          <button className={`filter ${labMode ? "active" : ""}`} onClick={() => setLabMode(true)}>Authorized lab</button>
         </div>
-        <div style={{ display: "grid", gap: 5 }}>
-          <label className="muted" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Scope</label>
-          <select
-            className="filter-select"
-            style={{ width: "100%" }}
-            value={scope}
-            onChange={(e) => setScope(e.target.value)}
-            disabled={profile === "demo"}
-          >
-            <option value="192.168.1.0/24">192.168.1.0/24</option>
-            <option value="10.0.0.0/8">10.0.0.0/8</option>
-            <option value="172.16.0.0/12">172.16.0.0/12</option>
-          </select>
+        <label className="scan-input-group">
+          <span className="muted">Target CIDR</span>
+          <input
+            className="scan-input"
+            value={scanTargetCidr}
+            onChange={(event) => setScanTargetCidr(event.target.value)}
+            disabled={!labMode}
+            placeholder="192.168.1.0/24"
+          />
+        </label>
+        <div className="scan-metrics">
+          <div>
+            <span className="muted">Critical</span>
+            <strong>{command?.kpis?.critical_count || 0}</strong>
+          </div>
+          <div>
+            <span className="muted">Open</span>
+            <strong>{command?.kpis?.open_incidents || 0}</strong>
+          </div>
+          <div>
+            <span className="muted">Aether</span>
+            <strong>{topIncident?.aether_sync_status || "offline"}</strong>
+          </div>
         </div>
         <button
           className="btn primary"
@@ -549,203 +547,283 @@ function ScanStatusPanel() {
           disabled={isPending}
           style={{
             width: "100%",
-            background: "linear-gradient(180deg, rgba(217,154,43,.85), rgba(217,154,43,.65))",
+            minHeight: 48,
+            justifyContent: "center",
+            background: "#f4f1ea",
             color: "#080b10",
-            borderColor: "rgba(217,154,43,.9)",
+            borderColor: "#f4f1ea",
             fontWeight: 800,
           }}
         >
-          <Play size={14} /> {isPending ? "Scanning..." : "Run scan"}
+          <Play size={14} />
+          {isPending ? "Running scan" : labMode ? `Run ${scanProfile.replace(/_/g, " ")} scan` : "Seed safe demo data"}
         </button>
         {isSuccess ? (
           <div className="chip" style={{ background: "rgba(34,197,94,.1)", borderColor: "rgba(34,197,94,.3)", color: "var(--low)" }}>
-            <CheckCircle2 size={12} /> {scanResult?.scan_uid} complete — {scanResult?.assets_discovered} assets discovered
+            <CheckCircle2 size={12} />
+            {result?.scan_uid} completed
           </div>
         ) : null}
         {isError ? (
           <div className="chip" style={{ background: "rgba(239,68,68,.1)", borderColor: "rgba(239,68,68,.3)", color: "var(--critical)" }}>
-            <XCircle size={12} /> Scan failed
+            <XCircle size={12} />
+            Scan request failed
           </div>
         ) : null}
+        <div className="metric-list" style={{ marginTop: 4 }}>
+          <div className="metric-row">
+            <span>Profile in queue</span>
+            <strong>{scanProfile.replace(/_/g, " ")}</strong>
+          </div>
+          <div className="metric-row">
+            <span>Last scan</span>
+            <strong>{formatTimestamp(command?.kpis?.last_scan_at)}</strong>
+          </div>
+          <div className="metric-row">
+            <span>Recommended move</span>
+            <strong style={{ maxWidth: 220, textAlign: "right" }}>{command?.recommended_action || "Awaiting first recommendation"}</strong>
+          </div>
+        </div>
       </div>
-    </motion.section>
+    </section>
   );
 }
 
-/* ================================================================
-   AETHER STATUS — Incident sync state
-   ================================================================ */
-function AetherStatus() {
-  const { data: incidentsData } = useIncidents();
-  const incidents = incidentsData?.items || [];
+function ShiftCarousel({
+  cards,
+}: {
+  cards: Array<{ quote: string; label: string; detail: string; tone: string }>;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const active = cards[activeIndex];
 
-  const topIncident = incidents
-    .filter((i: Incident) => i.status !== "Closed" && i.status !== "Resolved")
-    .sort((a: Incident, b: Incident) => b.risk_score - a.risk_score)[0];
-
-  const syncStatus = topIncident?.aether_sync_status || "offline";
-  const isOnline = syncStatus === "synced" || syncStatus === "online";
-  const actionCount = topIncident?.recommendations?.length || 0;
+  function cycle(direction: number) {
+    setActiveIndex((current) => (current + direction + cards.length) % cards.length);
+  }
 
   return (
-    <motion.section
-      className="command-surface"
-      style={{ minWidth: 0, overflow: "hidden" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.18 }}
-    >
-      <div style={{ padding: "16px 16px 10px" }}>
-        <div className="eyebrow">Aether Status</div>
-      </div>
-      <div style={{ padding: "0 16px 16px", display: "grid", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: isOnline ? "var(--low)" : "var(--critical)",
-              boxShadow: isOnline ? "0 0 0 4px rgba(34,197,94,.18)" : "0 0 0 4px rgba(239,68,68,.18)",
-              flexShrink: 0,
-            }}
-          />
-          <span style={{ fontWeight: 700, fontSize: 13 }}>{isOnline ? "Online" : "Offline"}</span>
+    <div className="panel feedback-panel">
+      <div className="eyebrow">Shift carousel</div>
+      <p className="feedback-quote">{active.quote}</p>
+      <div className="feedback-meta">
+        <div className="feedback-avatar-row">
+          {cards.map((card, index) => (
+            <button
+              key={card.label}
+              type="button"
+              aria-label={`Show ${card.label}`}
+              className={`feedback-avatar ${index === activeIndex ? "active" : ""}`}
+              onClick={() => setActiveIndex(index)}
+              data-tone={card.tone}
+            />
+          ))}
         </div>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: 0 }}>
-          {topIncident
-            ? `Active response for ${topIncident.incident_uid}: ${topIncident.title}`
-            : "No active incident. Aether is standing by."}
-        </p>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-          <span className="muted" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em" }}>Recommended actions</span>
-          <strong style={{ fontSize: 20, fontWeight: 800, fontFamily: "var(--font-mono, 'JetBrains Mono'), monospace" }}>{actionCount}</strong>
+        <div>
+          <strong>{active.label}</strong>
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{active.detail}</div>
         </div>
       </div>
-    </motion.section>
+      <div className="feedback-actions">
+        <button className="taste-btn" type="button" onClick={() => cycle(-1)}>Previous</button>
+        <button className="taste-btn taste-btn-primary" type="button" onClick={() => cycle(1)}>Next</button>
+      </div>
+    </div>
   );
 }
 
-/* ================================================================
-   QUICK ACTIONS — Navigation shortcuts
-   ================================================================ */
-function QuickActions() {
-  const actions = [
-    { label: "Open topology", href: "/topology", icon: Network },
-    { label: "Review incidents", href: "/incidents", icon: AlertTriangle },
-    { label: "Inspect assets", href: "/assets", icon: Factory },
-    { label: "Generate report", href: "/reports", icon: FileText },
+export default function CommandPage() {
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [activeProfile, setActiveProfile] = useState("safe_discovery");
+  const { data: command } = useCommandCenter();
+  const assetsQuery = useAssets();
+  const incidentsQuery = useIncidents();
+  const eventsQuery = useEvents(20, 0);
+  const profilesQuery = useScanProfiles();
+
+  const assets: Asset[] = assetsQuery.data?.items || [];
+  const incidents: Incident[] = incidentsQuery.data?.items || [];
+  const events: SecurityEvent[] = eventsQuery.data?.items || [];
+  const profiles = profilesQuery.data?.profiles || [];
+  const topIncident = getActiveIncident(incidents);
+  const signalDeck = buildSignalDeck({ command, topIncident, assets, events });
+  const desireNarrative = command?.recommended_action
+    || "The command surface should explain why a system matters before the analyst has to explain it back to the interface.";
+  const storyCards = [
+    {
+      label: "Risk posture",
+      title: `${command?.kpis?.critical_count || 0} critical decisions are shaping the queue.`,
+      body: `${command?.kpis?.unauthorized_count || 0} unauthorized assets and ${command?.kpis?.open_incidents || 0} open incident lanes are already visible without leaving the command surface.`,
+    },
+    {
+      label: "Incident thread",
+      title: topIncident?.title || "No incident has taken the lead yet.",
+      body: topIncident
+        ? `${topIncident.incident_uid} is carrying ${topIncident.affected_assets.length} affected assets with ${topIncident.confidence_score}% confidence.`
+        : "Run a discovery pass to give the correlation engine real objects to connect.",
+    },
+    {
+      label: "Response handoff",
+      title: topIncident?.aether_sync_status ? `Aether is ${topIncident.aether_sync_status}.` : "Aether is standing by.",
+      body: topIncident?.aether_ticket_url
+        ? "The ticket lane already has an external destination so the analyst does not need to copy the narrative by hand."
+        : "The handoff will stay local until the backend creates a durable Aether ticket.",
+    },
   ];
 
-  return (
-    <motion.section
-      className="command-surface"
-      style={{ minWidth: 0, overflow: "hidden" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.2 }}
-    >
-      <div style={{ padding: "16px 16px 10px" }}>
-        <div className="eyebrow">Quick Actions</div>
-      </div>
-      <div style={{ padding: "0 16px 16px", display: "grid", gap: 5 }}>
-        {actions.map((action) => {
-          const Icon = action.icon;
-          return (
-            <Link
-              key={action.label}
-              href={action.href}
-              className="btn"
-              style={{
-                justifyContent: "space-between",
-                width: "100%",
-                textDecoration: "none",
-                fontWeight: 600,
-                minHeight: 36,
-                fontSize: 12,
-                borderRadius: 10,
-              }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Icon size={14} /> {action.label}
-              </span>
-              <ArrowUpRight size={13} className="muted" />
-            </Link>
-          );
-        })}
-      </div>
-    </motion.section>
-  );
-}
+  useGSAP(() => {
+    const ctx = gsap.context(() => {
+      gsap.set(".scrub-word", { opacity: 0.12 });
+      gsap.to(".scrub-word", {
+        opacity: 1,
+        stagger: 0.08,
+        ease: "none",
+        scrollTrigger: {
+          trigger: ".desire-copy",
+          start: "top 78%",
+          end: "bottom 34%",
+          scrub: true,
+        },
+      });
 
-/* ================================================================
-   ACTIVE INCIDENT — Focus panel when incidents exist
-   ================================================================ */
-function ActiveIncidentPanel() {
-  const { data: incidentsData } = useIncidents();
-  const incidents = incidentsData?.items || [];
-  const active = incidents
-    .filter((i: Incident) => i.status !== "Closed" && i.status !== "Resolved")
-    .sort((a: Incident, b: Incident) => b.risk_score - a.risk_score)[0];
+      gsap.fromTo(
+        ".stack-card",
+        { y: 120, opacity: 0.35, scale: 0.96 },
+        {
+          y: 0,
+          opacity: 1,
+          scale: 1,
+          stagger: 0.16,
+          ease: "none",
+          scrollTrigger: {
+            trigger: ".stack-lane",
+            start: "top 72%",
+            end: "bottom bottom",
+            scrub: true,
+          },
+        },
+      );
+    }, pageRef);
+    return () => ctx.revert();
+  }, { scope: pageRef });
 
-  if (!active) return null;
-
-  return (
-    <motion.section
-      className="command-surface"
-      style={{ minWidth: 0, overflow: "hidden", borderLeft: "3px solid var(--critical)" }}
-      {...sectionMotion}
-      transition={{ ...sectionMotion.transition, delay: 0.14 }}
-    >
-      <div style={{ padding: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
-          <div>
-            <div className="eyebrow">Active Incident</div>
-            <h2 style={{ fontSize: 14, fontWeight: 700, marginTop: 4, letterSpacing: "-0.01em", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {active.title}
-            </h2>
-          </div>
-          <RiskBadge level={active.severity} score={active.risk_score} />
-        </div>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.5, margin: 0 }}>{active.summary}</p>
-        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-          <Link href={`/incidents/${active.id}`} className="btn primary" style={{ textDecoration: "none", fontSize: 12, minHeight: 32 }}>
-            <Zap size={13} /> Open workbench
-          </Link>
-        </div>
-      </div>
-    </motion.section>
-  );
-}
-
-/* ================================================================
-   PAGE SHELL
-   ================================================================ */
-export default function CommandPage() {
   return (
     <AppShell>
-      <main className="taste-command" style={{ padding: "20px clamp(18px, 3vw, 42px)" }}>
-        <CommandHero />
+      <main ref={pageRef} className="taste-command overflow-x-hidden w-full max-w-full">
+        <CinematicHero command={command} topIncident={topIncident} />
 
-        <div className="command-grid" style={{ gap: 14 }}>
-          <div style={{ display: "grid", gap: 14 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 0.8fr)", gap: 14 }}>
-              <RiskQueue />
-              <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
-                <ActiveIncidentPanel />
-                <TopologyPreview />
-                <ExposureByPort />
-              </div>
+        <section className="command-page-marquee" aria-hidden="true">
+          <div>
+            DETROIT FORGE · COMMAND CENTER · ASSET INTELLIGENCE · INCIDENT RESPONSE · TOPOLOGY MAPPING · RISK CORRELATION · AETHER SYNC · SECURITY OPERATIONS · DETROIT FORGE · COMMAND CENTER · ASSET INTELLIGENCE · INCIDENT RESPONSE · TOPOLOGY MAPPING · RISK CORRELATION · AETHER SYNC · SECURITY OPERATIONS ·
+          </div>
+        </section>
+
+        <section className="command-interest">
+          <div className="section-copy" style={{ marginLeft: 0, maxWidth: 1080 }}>
+            <h2>
+              One system for the queue, the
+              {" "}
+              <span className="inline-photo inline-photo-signal" aria-hidden="true" />
+              {" "}
+              signal, and the handoff.
+            </h2>
+            <p>
+              The interface now treats production risk as a narrative object: visible, connected, and operationally useful
+              before anyone needs to translate a dashboard back into an investigation.
+            </p>
+          </div>
+
+          <div className="command-bento command-bento-v2">
+            <div className="bento-card bento-queue">
+              <RiskQueue
+                assets={assets}
+                isLoading={assetsQuery.isLoading}
+                hasError={Boolean(assetsQuery.error)}
+              />
+            </div>
+            <div className="bento-card bento-accordion">
+              <ProfileAccordion
+                profiles={profiles}
+                isLoading={profilesQuery.isLoading}
+                hasError={Boolean(profilesQuery.error)}
+                activeProfile={activeProfile}
+                setActiveProfile={setActiveProfile}
+              />
+            </div>
+            <div className="bento-card bento-events-v2">
+              <EventLedger
+                events={events}
+                assets={assets}
+                isLoading={eventsQuery.isLoading}
+                hasError={Boolean(eventsQuery.error)}
+              />
+            </div>
+            <div className="bento-card bento-exposure">
+              <ExposureField
+                assets={assets}
+                isLoading={assetsQuery.isLoading}
+                hasError={Boolean(assetsQuery.error)}
+              />
+            </div>
+            <div className="bento-card bento-control">
+              <OperationsControl command={command} topIncident={topIncident} />
             </div>
           </div>
-          <div className="right-rail" style={{ gap: 14 }}>
-            <ScanStatusPanel />
-            <AetherStatus />
-            <QuickActions />
-          </div>
-        </div>
+        </section>
 
-        <div style={{ marginTop: 14 }}>
-          <EventStream />
-        </div>
+        <section className="command-desire">
+          <div className="desire-pin">
+            <div className="eyebrow">Readable pressure at scroll speed</div>
+            <h2>Production-grade control means the interface explains the urgency before the analyst does.</h2>
+            <p className="desire-copy">
+              {desireNarrative.split(" ").map((word: string, index: number) => (
+                <span className="scrub-word" key={`${word}-${index}`}>{word} </span>
+              ))}
+            </p>
+            {topIncident?.aether_ticket_url ? (
+              <a href={topIncident.aether_ticket_url} target="_blank" rel="noreferrer" className="taste-btn" style={{ marginTop: 22, textDecoration: "none", width: "fit-content" }}>
+                Open Aether ticket
+                <ExternalLink size={16} />
+              </a>
+            ) : null}
+          </div>
+
+          <div className="stack-lane">
+            {storyCards.map((card) => (
+              <article className="stack-card" key={card.title}>
+                <div className="eyebrow">{card.label}</div>
+                <h3>{card.title}</h3>
+                <p>{card.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="command-action">
+          <div>
+            <div className="eyebrow">Move the next shift faster</div>
+            <h2>Keep every decision visible from first discovery to the final response lane.</h2>
+            <p>
+              The shell stays consistent, the scan controls stay real, and the command surface keeps the next recommended move
+              close enough to act on instead of hiding it behind a decorative dashboard.
+            </p>
+            <div className="hero-actions">
+              <Link href="/assets" className="taste-btn taste-btn-primary">
+                Open asset intelligence
+                <ArrowRight size={17} />
+              </Link>
+              <Link href="/incidents" className="taste-btn">
+                Continue to incidents
+                <ArrowUpRight size={17} />
+              </Link>
+            </div>
+            <div className="footer-links">
+              <Link href="/topology">Topology</Link>
+              <Link href="/reports">Reports</Link>
+              <Link href="/settings">Settings</Link>
+            </div>
+          </div>
+          <ShiftCarousel cards={signalDeck} />
+        </section>
       </main>
 
       <AssetDetailDrawer />

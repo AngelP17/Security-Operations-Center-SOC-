@@ -181,6 +181,9 @@ def list_profiles() -> list[dict]:
             "delay_between_hosts_ms": p.delay_between_hosts_ms,
             "banner_grab": p.banner_grab,
             "ot_protocol_probes": p.ot_protocol_probes,
+            "port_count": len(p.ports),
+            "max_concurrent_hosts": p.max_concurrent_hosts,
+            "rate_limit_per_second": p.rate_limit_per_second,
         }
         for p in SCAN_PROFILES.values()
     ]

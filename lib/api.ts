@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { ScanProfile, Asset, Incident } from "@/lib/types";
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api",
@@ -60,8 +61,22 @@ export async function runDemoScan() {
   return data;
 }
 
-export async function runLabScan(targetCidr: string) {
-  const { data } = await api.post("/scans/lab", { target_cidr: targetCidr });
+export async function runLabScan({
+  targetCidr,
+  profile,
+}: {
+  targetCidr: string;
+  profile?: string;
+}) {
+  const { data } = await api.post("/scans/lab", {
+    target_cidr: targetCidr,
+    profile,
+  });
+  return data;
+}
+
+export async function getScanProfiles(): Promise<{ profiles: ScanProfile[] }> {
+  const { data } = await api.get("/scans/profiles");
   return data;
 }
 
@@ -83,9 +98,9 @@ export async function createAetherTicket(incidentId: number) {
 export async function getTopology() {
   const assetsRes = await api.get("/assets/");
   const incidentsRes = await api.get("/incidents/");
-  const assets = assetsRes.data.items || [];
-  const incidents = incidentsRes.data.items || [];
-  const nodes = assets.map((a: any) => ({
+  const assets: Asset[] = assetsRes.data.items || [];
+  const incidents: Incident[] = incidentsRes.data.items || [];
+  const nodes = assets.map((a) => ({
     id: String(a.id),
     label: a.hostname || a.ip_address,
     segment: a.segment || "Unknown",
@@ -110,8 +125,8 @@ export async function getTopology() {
     const aff = inc.affected_assets || [];
     for (let i = 0; i < aff.length; i++) {
       for (let j = i + 1; j < aff.length; j++) {
-        const src = assets.find((a: any) => a.hostname === aff[i] || a.asset_uid === aff[i]);
-        const tgt = assets.find((a: any) => a.hostname === aff[j] || a.asset_uid === aff[j]);
+        const src = assets.find((a) => a.hostname === aff[i] || a.asset_uid === aff[i]);
+        const tgt = assets.find((a) => a.hostname === aff[j] || a.asset_uid === aff[j]);
         if (src && tgt) {
           edges.push({ source: String(src.id), target: String(tgt.id), relationship: "incident_correlation" });
         }

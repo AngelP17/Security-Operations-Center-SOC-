@@ -30,7 +30,7 @@ import { RouteState } from "./RouteState";
 import { useAsset, useAssetRisk } from "@/lib/hooks/use-assets";
 import { useAssetReplay } from "@/lib/hooks/use-replay";
 import { useIncidents, useIncidentEvidence } from "@/lib/hooks/use-incidents";
-import type { Asset, Incident } from "@/lib/types";
+import type { Asset, Incident, EvidenceItem, ReplayStep, PortInfo, AssetRiskData } from "@/lib/types";
 
 const sectionVariants = {
   hidden: { opacity: 0, y: 12 },
@@ -342,7 +342,7 @@ export function AssetDetailDrawer() {
                   </div>
                   {evidence.length > 0 ? (
                     <div style={{ display: "grid", gap: 8 }}>
-                      {evidence.map((item: any, idx: number) => (
+                      {evidence.map((item: EvidenceItem, idx: number) => (
                         <div
                           key={idx}
                           style={{
@@ -379,7 +379,7 @@ export function AssetDetailDrawer() {
                     </div>
                   ) : replay && !replayLoading && replay.steps?.length ? (
                     <div style={{ display: "grid", gap: 8 }}>
-                      {replay.steps.slice(0, 5).map((step: any, idx: number) => (
+                      {replay.steps.slice(0, 5).map((step: ReplayStep, idx: number) => (
                         <div
                           key={idx}
                           style={{
@@ -430,7 +430,7 @@ export function AssetDetailDrawer() {
                   </div>
                   {(asset.open_ports || []).length > 0 ? (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                      {asset.open_ports.map((port: any) => (
+                      {asset.open_ports.map((port: PortInfo) => (
                         <div
                           key={port.port}
                           style={{
@@ -482,7 +482,7 @@ export function AssetDetailDrawer() {
                         {risk.explanation?.[0] || "Risk decision computed from asset features and events."}
                       </p>
                       <div className="metric-list" style={{ marginTop: 10, gap: 6 }}>
-                        {(risk.score_breakdown || []).slice(0, 4).map((item: any) => (
+                        {(risk.score_breakdown || []).slice(0, 4).map((item: AssetRiskData["score_breakdown"][number]) => (
                           <div className="metric-row" key={item.label} style={{ paddingBottom: 6 }}>
                             <span style={{ fontSize: 11 }}>{item.label}</span>
                             <strong className="mono" style={{ fontSize: 11 }}>

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCommandCenter, runDemoScan, runLabScan } from "@/lib/api";
+import { getCommandCenter, getScanProfiles, runDemoScan, runLabScan } from "@/lib/api";
 
 export function useCommandCenter() {
   return useQuery({
@@ -34,5 +34,13 @@ export function useRunLabScan() {
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
       queryClient.invalidateQueries({ queryKey: ["topology"] });
     },
+  });
+}
+
+export function useScanProfiles() {
+  return useQuery({
+    queryKey: ["scan-profiles"],
+    queryFn: getScanProfiles,
+    staleTime: 60_000,
   });
 }

@@ -12,10 +12,14 @@ import {
   Activity,
   ShieldCheck,
 } from "lucide-react";
+import { useAssets } from "@/lib/hooks/use-assets";
+import { useIncidents } from "@/lib/hooks/use-incidents";
 
 export function CmdKSearch() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const { data: assetsData } = useAssets();
+  const { data: incidentsData } = useIncidents();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -38,6 +42,19 @@ export function CmdKSearch() {
     { label: "Reports", href: "/reports", icon: Activity },
     { label: "Settings", href: "/settings", icon: ShieldCheck },
   ];
+  const assetItems = (assetsData?.items || []).slice(0, 6).map((asset: { hostname?: string; ip_address?: string }) => ({
+    label: asset.hostname || asset.ip_address,
+    href: `/assets?query=${encodeURIComponent(asset.hostname || asset.ip_address || "")}`,
+    meta: asset.ip_address,
+    icon: Factory,
+  }));
+  const incidentItems = (incidentsData?.items || []).slice(0, 6).map((incident: { id: number; title: string; incident_uid: string }) => ({
+    label: incident.title,
+    href: `/incidents/${incident.id}`,
+    meta: incident.incident_uid,
+    icon: AlertTriangle,
+  }));
+  const items = [...pages, ...incidentItems, ...assetItems];
 
   return (
     <div
@@ -102,13 +119,13 @@ export function CmdKSearch() {
             >
               No results found.
             </Command.Empty>
-            {pages.map((page) => {
-              const Icon = page.icon;
+            {items.map((item) => {
+              const Icon = item.icon;
               return (
                 <Command.Item
-                  key={page.href}
+                  key={`${item.href}-${item.label}`}
                   onSelect={() => {
-                    router.push(page.href);
+                    router.push(item.href);
                     setOpen(false);
                   }}
                   style={{
@@ -127,7 +144,12 @@ export function CmdKSearch() {
                   }
                 >
                   <Icon size={16} style={{ color: "var(--amber)" }} />
-                  <span style={{ fontSize: 14 }}>{page.label}</span>
+                  <div style={{ display: "grid", gap: 2 }}>
+                    <span style={{ fontSize: 14 }}>{item.label}</span>
+                    {"meta" in item && item.meta ? (
+                      <span className="muted" style={{ fontSize: 11 }}>{item.meta}</span>
+                    ) : null}
+                  </div>
                 </Command.Item>
               );
             })}
