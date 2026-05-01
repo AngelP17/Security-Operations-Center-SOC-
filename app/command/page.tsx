@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -10,12 +10,14 @@ import {
   ArrowRight,
   ArrowUpRight,
   CheckCircle2,
+  Clock3,
   ExternalLink,
   Play,
   Radar,
   Wifi,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { AssetDetailDrawer } from "@/components/shared/AssetDetailDrawer";
 import { RiskBadge } from "@/components/shared/RiskBadge";
@@ -24,6 +26,7 @@ import { useAssets } from "@/lib/hooks/use-assets";
 import { useCommandCenter, useRunDemoScan, useRunLabScan, useScanProfiles } from "@/lib/hooks/use-command-center";
 import { useEvents } from "@/lib/hooks/use-events";
 import { useIncidents } from "@/lib/hooks/use-incidents";
+import { useActiveScanRun, useCancelScan, useScanStatus } from "@/lib/hooks/use-scans";
 import { useForgeStore } from "@/lib/store";
 import type { Asset, CommandSummaryData, Incident, ScanProfile, SecurityEvent } from "@/lib/types";
 
@@ -483,25 +486,81 @@ function OperationsControl({
     labMode,
     scanTargetCidr,
     scanProfile,
+    activeScanId,
+    setActiveScanId,
     setLabMode,
     setScanTargetCidr,
   } = useForgeStore();
   const demoScan = useRunDemoScan();
   const labScan = useRunLabScan();
+  const cancelScan = useCancelScan();
+  const { activeScan } = useActiveScanRun();
+  const trackedScanId = activeScanId || activeScan?.id || null;
+  const statusQuery = useScanStatus(trackedScanId ?? undefined);
   const isPending = demoScan.isPending || labScan.isPending;
   const isSuccess = demoScan.isSuccess || labScan.isSuccess;
   const isError = demoScan.isError || labScan.isError;
   const result = demoScan.data || labScan.data;
+  const liveScan = statusQuery.data || activeScan || null;
+
+  // Scan lifecycle toast notifications
+  const prevStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const status = liveScan?.status;
+    if (!status || status === prevStatusRef.current) return;
+    
+    if (status === "running" && prevStatusRef.current === null) {
+      toast.info(`Scan ${liveScan.scan_uid} started`, {
+        description: `${liveScan.profile?.replace(/_/g, " ") || "scan"} against ${liveScan.target_cidr || "demo"}`,
+      });
+    } else if (status === "completed" && prevStatusRef.current === "running") {
+      toast.success(`Scan ${liveScan.scan_uid} completed`, {
+        description: `${liveScan.assets_discovered} assets discovered · ${liveScan.ports_open} open ports`,
+      });
+    } else if (status === "failed" && prevStatusRef.current === "running") {
+      toast.error(`Scan ${liveScan.scan_uid} failed`, {
+        description: liveScan.error_message || "Check logs for details",
+      });
+    } else if (status === "cancelled" && prevStatusRef.current === "running") {
+      toast.warning(`Scan ${liveScan.scan_uid} cancelled`);
+    }
+    prevStatusRef.current = status;
+  }, [liveScan?.status, liveScan?.scan_uid, liveScan?.assets_discovered, liveScan?.ports_open, liveScan?.error_message, liveScan?.profile, liveScan?.target_cidr]);
 
   function handleRun() {
     if (labMode) {
-      labScan.mutate({
-        targetCidr: scanTargetCidr,
-        profile: scanProfile,
-      });
+      toast.info("Queuing lab scan...", { description: `${scanProfile.replace(/_/g, " ")} · ${scanTargetCidr}` });
+      labScan.mutate(
+        {
+          targetCidr: scanTargetCidr,
+          profile: scanProfile,
+        },
+        {
+          onSuccess: (data) => {
+            if (data?.id) {
+              setActiveScanId(data.id);
+              toast.success("Scan queued", { description: `Job ${data.scan_uid} is now ${data.status}` });
+            }
+          },
+          onError: (err: any) => {
+            toast.error("Scan failed to queue", { description: err?.response?.data?.detail || err.message });
+          },
+        },
+      );
       return;
     }
-    demoScan.mutate();
+    toast.info("Running demo scan...");
+    demoScan.mutate(undefined, {
+      onSuccess: (data) => {
+        if (data?.id) {
+          setActiveScanId(data.id);
+          toast.success("Demo scan completed", { description: `${data.assets_discovered} assets seeded` });
+        }
+      },
+      onError: (err: any) => {
+        toast.error("Demo scan failed", { description: err?.response?.data?.detail || err.message });
+      },
+    });
   }
 
   return (
@@ -556,12 +615,29 @@ function OperationsControl({
           }}
         >
           <Play size={14} />
-          {isPending ? "Running scan" : labMode ? `Run ${scanProfile.replace(/_/g, " ")} scan` : "Seed safe demo data"}
+          {isPending
+            ? "Queueing scan"
+            : liveScan && !["completed", "failed", "cancelled"].includes(liveScan.status)
+              ? `Active ${liveScan.status} · ${liveScan.progress_percent}%`
+              : labMode
+                ? `Run ${scanProfile.replace(/_/g, " ")} scan`
+                : "Seed safe demo data"}
         </button>
+        {liveScan && !["completed", "failed", "cancelled"].includes(liveScan.status) ? (
+          <div className="chip" style={{ background: "rgba(217,154,43,.1)", borderColor: "rgba(217,154,43,.28)", color: "var(--amber)", justifyContent: "space-between" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <Clock3 size={12} />
+              {liveScan.scan_uid} · {liveScan.hosts_responsive} responsive hosts · {liveScan.ports_open} open ports
+            </span>
+            <button className="btn" style={{ minHeight: 24, padding: "0 8px", fontSize: 10 }} onClick={() => cancelScan.mutate(liveScan.id)}>
+              Cancel
+            </button>
+          </div>
+        ) : null}
         {isSuccess ? (
           <div className="chip" style={{ background: "rgba(34,197,94,.1)", borderColor: "rgba(34,197,94,.3)", color: "var(--low)" }}>
             <CheckCircle2 size={12} />
-            {result?.scan_uid} completed
+            {result?.scan_uid} {result?.status === "queued" ? "queued" : "completed"}
           </div>
         ) : null}
         {isError ? (

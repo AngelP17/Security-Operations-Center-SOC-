@@ -14,8 +14,15 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from apps.api.config import settings
-from apps.api.models.scan import ScanRun, ScanObservation, ScanAuthorizationScope
+from apps.api.models.scan import (
+    ScanRun,
+    ScanObservation,
+    ScanAuthorizationScope,
+    ScanHostResult,
+    ScanPortResult,
+)
 from apps.api.models.asset import Asset
+from apps.api.models.event import SecurityEvent
 from apps.api.models.risk import RiskDecision
 from apps.api.services.asset_service import asset_service
 from apps.api.services.event_service import event_service
@@ -24,6 +31,7 @@ from apps.api.services.correlation_engine import correlation_engine
 from apps.api.services.replay_service import replay_service
 from apps.api.services.scan_profiles import get_profile, list_profiles
 from apps.api.services.scan_worker import scan_worker
+from apps.api.services.exposure_findings import exposure_engine
 
 
 PORT_SERVICE_MAP = {
@@ -127,8 +135,189 @@ def _build_port_info(port_numbers: list[int]) -> list[dict]:
 
 
 class ScanService:
+    def _serialize_scan_run(self, scan: ScanRun) -> dict:
+        metadata = {}
+        try:
+            metadata = json.loads(scan.metadata_json or "{}")
+        except json.JSONDecodeError:
+            metadata = {}
+
+        return {
+            "id": scan.id,
+            "scan_uid": scan.scan_uid,
+            "mode": scan.mode,
+            "target_cidr": scan.target_cidr,
+            "profile": scan.profile,
+            "status": scan.status,
+            "progress_percent": scan.progress_percent,
+            "assets_discovered": scan.assets_discovered,
+            "observations_created": scan.observations_created,
+            "events_created": scan.events_created,
+            "hosts_scanned": scan.hosts_scanned,
+            "hosts_responsive": scan.hosts_responsive,
+            "ports_open": scan.ports_open,
+            "safety_status": scan.safety_status,
+            "started_at": scan.started_at,
+            "completed_at": scan.completed_at,
+            "error_message": scan.error_message,
+            "initiated_by": scan.initiated_by,
+            "authorization_scope_id": scan.authorization_scope_id,
+            "metadata": metadata,
+        }
+
     def list_scan_profiles(self) -> list[dict]:
         return list_profiles()
+
+    def list_scans(self, db: Session, limit: int = 50, offset: int = 0) -> dict:
+        query = db.query(ScanRun).order_by(ScanRun.started_at.desc(), ScanRun.id.desc())
+        total = query.count()
+        scans = query.offset(offset).limit(limit).all()
+        return {
+            "items": [self._serialize_scan_run(scan) for scan in scans],
+            "total": total,
+        }
+
+    def get_scan(self, db: Session, scan_run_id: int) -> dict:
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+        return self._serialize_scan_run(scan)
+
+    def get_scan_hosts(self, db: Session, scan_run_id: int) -> dict:
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        items = (
+            db.query(ScanHostResult)
+            .filter(ScanHostResult.scan_run_id == scan_run_id)
+            .order_by(
+                ScanHostResult.ports_open.desc(),
+                ScanHostResult.identity_confidence.desc(),
+                ScanHostResult.ip_address.asc(),
+            )
+            .all()
+        )
+
+        results = []
+        for item in items:
+            try:
+                matched_on = json.loads(item.identity_matched_on_json or "[]")
+            except json.JSONDecodeError:
+                matched_on = []
+            results.append(
+                {
+                    "id": item.id,
+                    "scan_run_id": item.scan_run_id,
+                    "ip_address": item.ip_address,
+                    "hostname": item.hostname,
+                    "mac_address": item.mac_address,
+                    "vendor": item.vendor,
+                    "asset_type": item.asset_type,
+                    "is_responsive": item.is_responsive,
+                    "discovery_method": item.discovery_method,
+                    "host_latency_ms": item.host_latency_ms,
+                    "ports_scanned": item.ports_scanned,
+                    "ports_open": item.ports_open,
+                    "identity_confidence": item.identity_confidence,
+                    "identity_matched_on": matched_on,
+                    "scanned_at": item.scanned_at,
+                }
+            )
+
+        return {"items": results, "total": len(results)}
+
+    def get_scan_ports(self, db: Session, scan_run_id: int) -> dict:
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        items = (
+            db.query(ScanPortResult)
+            .filter(ScanPortResult.scan_run_id == scan_run_id)
+            .order_by(ScanPortResult.ip_address.asc(), ScanPortResult.port.asc())
+            .all()
+        )
+
+        results = []
+        for item in items:
+            try:
+                evidence = json.loads(item.evidence_json or "{}")
+            except json.JSONDecodeError:
+                evidence = {}
+            results.append(
+                {
+                    "id": item.id,
+                    "scan_run_id": item.scan_run_id,
+                    "host_result_id": item.host_result_id,
+                    "ip_address": item.ip_address,
+                    "port": item.port,
+                    "protocol": item.protocol,
+                    "state": item.state,
+                    "service_guess": item.service_guess,
+                    "latency_ms": item.latency_ms,
+                    "banner_hash": item.banner_hash,
+                    "evidence": evidence,
+                    "scanned_at": item.scanned_at,
+                }
+            )
+
+        return {"items": results, "total": len(results)}
+
+    def get_scan_findings(self, db: Session, scan_run_id: int) -> dict:
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        host_results = (
+            db.query(ScanHostResult)
+            .filter(ScanHostResult.scan_run_id == scan_run_id)
+            .all()
+        )
+        host_ips = {item.ip_address for item in host_results}
+        candidate_assets = (
+            db.query(Asset)
+            .filter(Asset.ip_address.in_(host_ips))
+            .all()
+            if host_ips
+            else []
+        )
+        asset_ids = {asset.id for asset in candidate_assets}
+
+        query = db.query(SecurityEvent).filter(SecurityEvent.source == "exposure_engine")
+        if asset_ids:
+            query = query.filter(SecurityEvent.asset_id.in_(asset_ids))
+        if scan.started_at:
+            query = query.filter(SecurityEvent.observed_at >= scan.started_at)
+        if scan.completed_at:
+            query = query.filter(SecurityEvent.observed_at <= scan.completed_at)
+
+        findings = []
+        for event in query.order_by(SecurityEvent.observed_at.desc()).all():
+            payload = event.payload or {}
+            payload_scan_id = payload.get("scan_run_id")
+            if payload_scan_id is not None and payload_scan_id != scan_run_id:
+                continue
+            title = event.description or "Exposure finding"
+            if payload.get("rule_id") and ": " in title:
+                title = title.split(": ", 1)[0].split("] ", 1)[-1]
+            findings.append(
+                {
+                    "event_id": event.id,
+                    "asset_id": event.asset_id,
+                    "severity": event.severity or "low",
+                    "title": title,
+                    "description": event.description or "",
+                    "rule_id": payload.get("rule_id"),
+                    "category": payload.get("category"),
+                    "confidence": payload.get("confidence"),
+                    "affected_ports": payload.get("affected_ports", []),
+                    "remediation": payload.get("remediation"),
+                    "observed_at": event.observed_at,
+                }
+            )
+
+        return {"items": findings, "total": len(findings)}
 
     def run_demo_scan(self, db: Session) -> ScanRun:
         now = datetime.datetime.utcnow()
@@ -219,6 +408,39 @@ class ScanService:
                 },
             )
             events_created += 1
+
+            findings = exposure_engine.analyze(
+                asset_type=fixture["asset_type"],
+                segment=fixture["segment"],
+                open_ports=fixture["ports"],
+                authorization_state=fixture["authorization_state"],
+                owner=fixture["owner"],
+                hostname=fixture["hostname"],
+            )
+
+            for finding in findings:
+                finding_event_uid = f"evt-{uuid.uuid4().hex[:10]}"
+                event_service.create_event(
+                    db,
+                    {
+                        "event_uid": finding_event_uid,
+                        "event_type": "exposure_finding",
+                        "severity": finding.severity,
+                        "asset_id": asset.id,
+                        "source": "exposure_engine",
+                        "description": f"[{finding.rule_id}] {finding.title}: {finding.description}",
+                        "payload": {
+                            "scan_run_id": scan_run.id,
+                            "rule_id": finding.rule_id,
+                            "category": finding.category,
+                            "confidence": finding.confidence,
+                            "affected_ports": finding.affected_ports,
+                            "remediation": finding.remediation,
+                        },
+                        "observed_at": now,
+                    },
+                )
+                events_created += 1
 
         all_assets = db.query(Asset).all()
         for asset in all_assets:

@@ -147,6 +147,7 @@ export interface ReplayStep {
 }
 
 export interface ScanResult {
+  id?: number;
   scan_uid: string;
   mode: string;
   target_cidr: string;
@@ -159,6 +160,79 @@ export interface ScanResult {
   safety_status: string;
   started_at: string;
   completed_at?: string;
+}
+
+export interface ScanRunSummary {
+  id: number;
+  scan_uid: string;
+  mode: string;
+  target_cidr?: string | null;
+  profile?: string | null;
+  status: string;
+  progress_percent: number;
+  assets_discovered: number;
+  observations_created: number;
+  events_created: number;
+  hosts_scanned: number;
+  hosts_responsive: number;
+  ports_open: number;
+  safety_status: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error_message?: string | null;
+}
+
+export interface ScanDetail extends ScanRunSummary {
+  initiated_by?: string | null;
+  authorization_scope_id?: number | null;
+  metadata: Record<string, any>;
+}
+
+export interface ScanHostResult {
+  id: number;
+  scan_run_id: number;
+  ip_address: string;
+  hostname?: string | null;
+  mac_address?: string | null;
+  vendor?: string | null;
+  asset_type?: string | null;
+  is_responsive: boolean;
+  discovery_method?: string | null;
+  host_latency_ms?: number | null;
+  ports_scanned: number;
+  ports_open: number;
+  identity_confidence: number;
+  identity_matched_on: string[];
+  scanned_at?: string | null;
+}
+
+export interface ScanPortResult {
+  id: number;
+  scan_run_id: number;
+  host_result_id?: number | null;
+  ip_address: string;
+  port: number;
+  protocol: string;
+  state?: string | null;
+  service_guess?: string | null;
+  latency_ms?: number | null;
+  banner_hash?: string | null;
+  evidence: Record<string, any>;
+  scanned_at?: string | null;
+}
+
+export interface ExposureFinding {
+  event_id: number;
+  asset_id?: number | null;
+  severity: string;
+  title: string;
+  description: string;
+  rule_id?: string | null;
+  category?: string | null;
+  confidence?: number | null;
+  affected_ports: number[];
+  remediation?: string | null;
+  observed_at?: string | null;
 }
 
 export interface ScanProfile {

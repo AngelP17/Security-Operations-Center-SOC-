@@ -10,16 +10,19 @@ import {
   AlertTriangle,
   Network,
   Activity,
+  ScanLine,
   ShieldCheck,
 } from "lucide-react";
 import { useAssets } from "@/lib/hooks/use-assets";
 import { useIncidents } from "@/lib/hooks/use-incidents";
+import { useScans } from "@/lib/hooks/use-scans";
 
 export function CmdKSearch() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { data: assetsData } = useAssets();
   const { data: incidentsData } = useIncidents();
+  const { data: scansData } = useScans(6, 0);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -38,6 +41,7 @@ export function CmdKSearch() {
     { label: "Command Center", href: "/command", icon: Gauge },
     { label: "Assets", href: "/assets", icon: Factory },
     { label: "Incidents", href: "/incidents", icon: AlertTriangle },
+    { label: "Scans", href: "/scans", icon: ScanLine },
     { label: "Topology", href: "/topology", icon: Network },
     { label: "Reports", href: "/reports", icon: Activity },
     { label: "Settings", href: "/settings", icon: ShieldCheck },
@@ -54,7 +58,13 @@ export function CmdKSearch() {
     meta: incident.incident_uid,
     icon: AlertTriangle,
   }));
-  const items = [...pages, ...incidentItems, ...assetItems];
+  const scanItems = (scansData?.items || []).slice(0, 6).map((scan: { id: number; scan_uid: string; profile?: string | null; status: string }) => ({
+    label: scan.scan_uid,
+    href: `/scans/${scan.id}`,
+    meta: `${scan.profile || "scan"} · ${scan.status}`,
+    icon: ScanLine,
+  }));
+  const items = [...pages, ...scanItems, ...incidentItems, ...assetItems];
 
   return (
     <div

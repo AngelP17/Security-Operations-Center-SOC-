@@ -13,6 +13,7 @@ import {
   FileClock,
   Activity,
   ShieldCheck,
+  ScanLine,
   Search,
   Play,
   UserCircle,
@@ -25,6 +26,7 @@ import { CmdKSearch } from "@/components/shared/CmdKSearch";
 import { useForgeStore } from "@/lib/store";
 import { useRunDemoScan, useRunLabScan } from "@/lib/hooks/use-command-center";
 import { useCommandCenter } from "@/lib/hooks/use-command-center";
+import { useActiveScanRun } from "@/lib/hooks/use-scans";
 
 const navGroups = [
   {
@@ -38,6 +40,7 @@ const navGroups = [
   {
     label: "Investigation",
     items: [
+      { href: "/scans", label: "Scans", icon: ScanLine },
       { href: "/topology", label: "Topology", icon: Network },
     ],
   },
@@ -67,6 +70,10 @@ const routeDetails: Record<string, { label: string; detail: string }> = {
     label: "Topology Investigation",
     detail: "Trace segment relationships without leaving the evidence context behind.",
   },
+  "/scans": {
+    label: "Scan Control Center",
+    detail: "Monitor job progress, inspect evidence, and compare governed scan runs.",
+  },
   "/reports": {
     label: "Reporting",
     detail: "Turn investigations into durable operational summaries for the next shift.",
@@ -84,13 +91,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     labMode,
     scanTargetCidr,
     scanProfile,
+    activeScanId,
     highContrastMode,
+    setActiveScanId,
     setLabMode,
     setSelectedAssetId,
   } = useForgeStore();
   const demoScan = useRunDemoScan();
   const labScan = useRunLabScan();
   const { data: commandData } = useCommandCenter();
+  const { activeScan } = useActiveScanRun();
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -98,6 +108,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     label: "ForgeSentinel Workspace",
     detail: "Operational context remains connected as you move between command surfaces.",
   };
+  const shellRouteKey = pathname.startsWith("/scans")
+    ? "scans"
+    : pathname.startsWith("/command")
+      ? "command"
+      : pathname.startsWith("/assets")
+        ? "assets"
+        : pathname.startsWith("/incidents")
+          ? "incidents"
+          : pathname.startsWith("/topology")
+            ? "topology"
+            : pathname.startsWith("/reports")
+              ? "reports"
+              : pathname.startsWith("/settings")
+                ? "settings"
+                : "workspace";
 
   const lastScan = commandData?.kpis?.last_scan_at;
   const scanStatus = lastScan
@@ -107,6 +132,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     ? `Data ${commandData.data_freshness}`
     : "Awaiting telemetry";
   const isScanPending = demoScan.isPending || labScan.isPending;
+  const liveScanLabel = activeScan
+    ? `Active ${activeScan.status} · ${activeScan.progress_percent}%`
+    : null;
 
   useEffect(() => {
     if (highContrastMode) {
@@ -133,13 +161,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   async function handleScan() {
     if (labMode) {
-      labScan.mutate({
-        targetCidr: scanTargetCidr,
-        profile: scanProfile,
-      });
+      labScan.mutate(
+        {
+          targetCidr: scanTargetCidr,
+          profile: scanProfile,
+        },
+        {
+          onSuccess: (data) => {
+            if (data?.id) setActiveScanId(data.id);
+          },
+        },
+      );
       return;
     }
-    demoScan.mutate();
+    demoScan.mutate(undefined, {
+      onSuccess: (data) => {
+        if (data?.id) setActiveScanId(data.id);
+      },
+    });
   }
 
   function handleSearchSubmit(event: React.FormEvent) {
@@ -191,8 +230,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </aside>
-      <div className="app-shell-stage">
-        <header className="topbar">
+      <div className="app-shell-stage" data-shell-route={shellRouteKey}>
+        <header className="topbar" data-shell-route={shellRouteKey}>
           <div className="shell-topbar-left">
             <button
               className="btn shell-icon-btn"
@@ -224,6 +263,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {labMode ? "Lab mode opt-in" : "Demo mode safe"}
             </button>
             <span className="chip" style={{ fontSize: 11 }}>{freshnessLabel}</span>
+            {liveScanLabel ? (
+              <Link href={`/scans/${activeScan?.id || activeScanId}`} className="chip" style={{ fontSize: 11, textDecoration: "none" }}>
+                <ScanLine size={12} /> {liveScanLabel}
+              </Link>
+            ) : null}
             <span className="chip" style={{ fontSize: 11 }}>{scanStatus}</span>
             <button className="btn primary" onClick={handleScan} disabled={isScanPending}>
               <Play size={14} /> {isScanPending ? "Scanning..." : labMode ? "Run lab scan" : "Run demo scan"}
@@ -231,7 +275,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="chip" style={{ fontSize: 11 }}><UserCircle size={15} /> Analyst</span>
           </div>
         </header>
-        <main className="workspace">
+        <main className="workspace" data-shell-route={shellRouteKey}>
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}

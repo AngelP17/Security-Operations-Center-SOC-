@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.config import settings
-from apps.api.models.database import Base, engine
+from apps.api.models.database import Base, engine, apply_sqlite_additive_migrations
 from apps.api.models import (
     Asset,
     ScanRun,
@@ -51,6 +51,7 @@ app.include_router(aether_router)
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    apply_sqlite_additive_migrations()
 
 
 @app.get("/api/health")

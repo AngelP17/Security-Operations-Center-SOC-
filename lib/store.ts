@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import type { Asset } from "@/lib/types";
 
 type AppState = {
+  activeScanId: number | null;
   selectedAssetId: number | null;
   selectedIncidentId: number | null;
   labMode: boolean;
@@ -18,6 +19,7 @@ type AppState = {
   highContrastMode: boolean;
   setSelectedAssetId: (id: number | null) => void;
   setSelectedIncidentId: (id: number | null) => void;
+  setActiveScanId: (id: number | null) => void;
   setLabMode: (enabled: boolean) => void;
   setRiskFilter: (risk: string) => void;
   setScanTargetCidr: (target: string) => void;
@@ -31,6 +33,7 @@ type AppState = {
 export const useForgeStore = create<AppState>()(
   persist(
     (set) => ({
+      activeScanId: null,
       selectedAssetId: null,
       selectedIncidentId: null,
       labMode: false,
@@ -41,6 +44,7 @@ export const useForgeStore = create<AppState>()(
       autoScanEnabled: false,
       strictAuthAlerts: false,
       highContrastMode: false,
+      setActiveScanId: (activeScanId) => set({ activeScanId }),
       setSelectedAssetId: (selectedAssetId) => set({ selectedAssetId }),
       setSelectedIncidentId: (selectedIncidentId) => set({ selectedIncidentId }),
       setLabMode: (labMode) => set({ labMode }),

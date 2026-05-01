@@ -329,6 +329,7 @@ class ScanWorker:
                             "source": "exposure_engine",
                             "description": f"[{finding.rule_id}] {finding.title}: {finding.description}",
                             "payload": {
+                                "scan_run_id": scan_run_id,
                                 "rule_id": finding.rule_id,
                                 "category": finding.category,
                                 "confidence": finding.confidence,

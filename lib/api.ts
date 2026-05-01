@@ -1,5 +1,16 @@
 import axios from "axios";
-import type { ScanProfile, Asset, Incident } from "@/lib/types";
+import type {
+  ScanProfile,
+  Asset,
+  Incident,
+  ScanDetail,
+  ScanHostResult,
+  ScanPortResult,
+  ExposureFinding,
+  ScanRunSummary,
+  ScanResult,
+  SecurityEvent,
+} from "@/lib/types";
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api",
@@ -26,8 +37,8 @@ export async function getAssetRisk(assetId: number) {
   return data;
 }
 
-export async function getEvents(limit = 50, offset = 0) {
-  const { data } = await api.get("/events/", { params: { limit, offset } });
+export async function getEvents(limit = 50, offset = 0, filters?: { asset_id?: number; event_type?: string; severity?: string }) {
+  const { data } = await api.get("/events/", { params: { limit, offset, ...filters } });
   return data;
 }
 
@@ -56,7 +67,7 @@ export async function getIncidentReplay(incidentId: number) {
   return data;
 }
 
-export async function runDemoScan() {
+export async function runDemoScan(): Promise<ScanResult> {
   const { data } = await api.post("/scans/demo");
   return data;
 }
@@ -67,7 +78,7 @@ export async function runLabScan({
 }: {
   targetCidr: string;
   profile?: string;
-}) {
+}): Promise<ScanResult> {
   const { data } = await api.post("/scans/lab", {
     target_cidr: targetCidr,
     profile,
@@ -77,6 +88,41 @@ export async function runLabScan({
 
 export async function getScanProfiles(): Promise<{ profiles: ScanProfile[] }> {
   const { data } = await api.get("/scans/profiles");
+  return data;
+}
+
+export async function getScans(limit = 50, offset = 0): Promise<{ items: ScanRunSummary[]; total: number }> {
+  const { data } = await api.get("/scans", { params: { limit, offset } });
+  return data;
+}
+
+export async function getScan(scanRunId: number): Promise<ScanDetail> {
+  const { data } = await api.get(`/scans/${scanRunId}`);
+  return data;
+}
+
+export async function getScanStatus(scanRunId: number): Promise<ScanDetail> {
+  const { data } = await api.get(`/scans/${scanRunId}/status`);
+  return data;
+}
+
+export async function cancelScan(scanRunId: number) {
+  const { data } = await api.post(`/scans/${scanRunId}/cancel`);
+  return data;
+}
+
+export async function getScanHosts(scanRunId: number): Promise<{ items: ScanHostResult[]; total: number }> {
+  const { data } = await api.get(`/scans/${scanRunId}/hosts`);
+  return data;
+}
+
+export async function getScanPorts(scanRunId: number): Promise<{ items: ScanPortResult[]; total: number }> {
+  const { data } = await api.get(`/scans/${scanRunId}/ports`);
+  return data;
+}
+
+export async function getScanFindings(scanRunId: number): Promise<{ items: ExposureFinding[]; total: number }> {
+  const { data } = await api.get(`/scans/${scanRunId}/findings`);
   return data;
 }
 
@@ -92,6 +138,11 @@ export async function rejectRecommendation(incidentId: number, recommendationId:
 
 export async function createAetherTicket(incidentId: number) {
   const { data } = await api.post(`/incidents/${incidentId}/create-aether-ticket`);
+  return data;
+}
+
+export async function getAssetExposureFindings(assetId: number): Promise<{ items: SecurityEvent[]; total: number }> {
+  const { data } = await api.get("/events/", { params: { asset_id: assetId, event_type: "exposure_finding", limit: 50 } });
   return data;
 }
 

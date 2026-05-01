@@ -10,6 +10,7 @@ import {
   Printer,
   Network,
   ShieldCheck,
+  ShieldAlert,
   ExternalLink,
   Ticket,
   Clock,
@@ -26,10 +27,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useForgeStore } from "@/lib/store";
 import { RiskBadge } from "./RiskBadge";
+import { ExposureBadge, ExposureBadgeStack } from "./ExposureBadge";
 import { RouteState } from "./RouteState";
 import { useAsset, useAssetRisk } from "@/lib/hooks/use-assets";
 import { useAssetReplay } from "@/lib/hooks/use-replay";
 import { useIncidents, useIncidentEvidence } from "@/lib/hooks/use-incidents";
+import { useAssetExposureFindings } from "@/lib/hooks/use-events";
 import type { Asset, Incident, EvidenceItem, ReplayStep, PortInfo, AssetRiskData } from "@/lib/types";
 
 const sectionVariants = {
@@ -129,6 +132,7 @@ export function AssetDetailDrawer() {
 
   const incident = asset ? findIncidentForAsset(incidents, asset) : null;
   const { data: evidenceData } = useIncidentEvidence(incident?.id);
+  const { data: exposureData, isLoading: exposureLoading } = useAssetExposureFindings(selectedAssetId || undefined);
   const evidence = evidenceData?.items || [];
 
   const AssetIcon = asset ? assetIconMap[asset.asset_type] || Monitor : Monitor;
@@ -458,10 +462,44 @@ export function AssetDetailDrawer() {
                   )}
                 </motion.section>
 
-                {/* Risk Decision */}
+                {/* Exposure Findings */}
                 <motion.section
                   className="panel"
                   custom={4}
+                  initial="hidden"
+                  animate="visible"
+                  variants={sectionVariants}
+                  style={{ padding: 14 }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <ShieldAlert size={15} color="var(--critical)" />
+                    <span className="eyebrow" style={{ fontSize: 10 }}>
+                      Exposure findings
+                    </span>
+                  </div>
+                  {exposureLoading ? (
+                    <RouteState type="loading" title="Loading exposure findings..." />
+                  ) : exposureData?.items?.length ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <ExposureBadgeStack findings={exposureData.items.map((e: any) => ({ severity: e.severity }))} />
+                      {exposureData.items.slice(0, 3).map((finding: any) => (
+                        <div key={finding.id} style={{ fontSize: 11, lineHeight: 1.5, padding: "6px 0", borderTop: "1px solid var(--border)" }}>
+                          <strong style={{ color: finding.severity === "critical" ? "var(--critical)" : finding.severity === "high" ? "var(--high)" : "var(--text)" }}>
+                            {finding.payload?.rule_id || "Finding"}
+                          </strong>
+                          <p className="muted" style={{ marginTop: 2 }}>{finding.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted" style={{ fontSize: 12 }}>No exposure findings for this asset.</p>
+                  )}
+                </motion.section>
+
+                {/* Risk Decision */}
+                <motion.section
+                  className="panel"
+                  custom={5}
                   initial="hidden"
                   animate="visible"
                   variants={sectionVariants}

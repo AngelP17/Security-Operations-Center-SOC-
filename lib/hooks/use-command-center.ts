@@ -19,6 +19,7 @@ export function useRunDemoScan() {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
       queryClient.invalidateQueries({ queryKey: ["topology"] });
+      queryClient.invalidateQueries({ queryKey: ["scans"] });
     },
   });
 }
@@ -33,6 +34,7 @@ export function useRunLabScan() {
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["incidents"] });
       queryClient.invalidateQueries({ queryKey: ["topology"] });
+      queryClient.invalidateQueries({ queryKey: ["scans"] });
     },
   });
 }
