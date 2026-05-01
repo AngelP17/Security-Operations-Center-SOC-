@@ -221,6 +221,50 @@ Banned fonts:
 - Arial
 - Helvetica
 
+### 8. Horizontal Scroll Prevention
+
+Wrap the page to prevent horizontal scrollbars from off-screen animations:
+
+```tsx
+<main className="overflow-x-hidden w-full max-w-full">
+  {/* Page content */}
+</main>
+```
+
+### 9. AIDA Structure
+
+Pages must follow the Attention-Interest-Desire-Action framework:
+
+```tsx
+// Good
+<nav>...</nav>           {/* Attention: Navigation */}
+<section className="hero">...</section>  {/* Interest: Hero */}
+<section>...</section>   {/* Desire: Content */}
+<section>...</section>   {/* Desire: More Content */}
+<footer>...</footer>     {/* Action: Footer */}
+```
+
+### Out-of-Scope Rules
+
+The following design-process rules are **not statically reviewable** and require manual design review:
+
+- **Python-driven randomization** (font selection, layout assignment)
+- **Component arsenal** (inline micro-images, horizontal accordions, infinite marquee)
+- **Creative backgrounds** (CSS filters, radial gradients)
+- **Pre-flight design plans** (`<design_plan>` blocks)
+
+## API vs Local Review
+
+| Feature | API Review (`gpt-taste-api-review.js`) | Local Review (`gpt-taste-local.js`) |
+|---------|----------------------------------------|-------------------------------------|
+| **Requires API key** | Yes (`ANTHROPIC_API_KEY`) | No |
+| **Accuracy** | High (AI-powered analysis) | Medium (static heuristics) |
+| **Speed** | Slower (API call + response) | Fast (local regex analysis) |
+| **Use case** | CI/CD, final PR review | Local development, pre-commit |
+| **Fallback** | Falls back to local if API fails | No fallback needed |
+
+**Recommendation:** Use local review during development for quick feedback. The API review runs automatically in CI/CD for thorough analysis.
+
 ## Troubleshooting
 
 ### API Errors

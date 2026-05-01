@@ -16,6 +16,18 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+// Utility: Escape regex special characters
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Utility: Convert glob pattern to regex
+function globToRegex(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const regex = '^' + escaped.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') + '$';
+  return new RegExp(regex);
+}
+
 // Parse arguments
 const args = process.argv.slice(2);
 const specificFiles = [];
@@ -34,20 +46,32 @@ for (let i = 0; i < args.length; i++) {
 }
 
 // Load configuration
-const configPath = path.join(process.cwd(), '.claude', 'gpt-taste-config.json');
-if (!fs.existsSync(configPath)) {
-  console.error('Error: GPT-Taste configuration not found at .claude/gpt-taste-config.json');
+let config;
+try {
+  const configPath = path.join(process.cwd(), '.claude', 'gpt-taste-config.json');
+  if (!fs.existsSync(configPath)) {
+    console.error('Error: GPT-Taste configuration not found at .claude/gpt-taste-config.json');
+    process.exit(1);
+  }
+  config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+} catch (err) {
+  console.error('Error loading config:', err.message);
   process.exit(1);
 }
 
-const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const rules = config.rules;
 
 // Collect files to review
 let filesToReview = [];
 
 if (specificFiles.length > 0) {
-  filesToReview = specificFiles.map(f => path.resolve(f)).filter(f => fs.existsSync(f));
+  filesToReview = specificFiles.map(f => path.resolve(f)).filter(f => {
+    try {
+      return fs.existsSync(f) && fs.statSync(f).isFile();
+    } catch {
+      return false;
+    }
+  });
 } else if (reviewStaged) {
   try {
     const staged = execSync('git diff --cached --name-only --diff-filter=ACM', { encoding: 'utf8' });
@@ -66,30 +90,39 @@ if (specificFiles.length > 0) {
   }
 } else {
   // Review all eligible files
-  function findFiles(dir, pattern) {
+  function findFiles(dir) {
     const files = [];
-    const items = fs.readdirSync(dir);
-    for (const item of items) {
-      const fullPath = path.join(dir, item);
-      const stat = fs.statSync(fullPath);
-      if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
-        files.push(...findFiles(fullPath, pattern));
-      } else if (stat.isFile() && item.match(pattern)) {
-        files.push(fullPath);
+    try {
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        try {
+          const stat = fs.statSync(fullPath, { throwIfNoEntry: false });
+          if (!stat) continue;
+          
+          if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
+            files.push(...findFiles(fullPath));
+          } else if (stat.isFile() && item.match(/\.(ts|tsx|css)$/)) {
+            files.push(fullPath);
+          }
+        } catch {
+          // Skip unreadable entries
+        }
       }
+    } catch {
+      // Skip unreadable directories
     }
     return files;
   }
   
-  filesToReview = findFiles(process.cwd(), /\.(ts|tsx|css)$/);
+  filesToReview = findFiles(process.cwd());
 }
 
 // Filter excluded patterns
 filesToReview = filesToReview.filter(filePath => {
   const relativePath = path.relative(process.cwd(), filePath);
   return !config.exclude_patterns.some(pattern => {
-    const regex = new RegExp(pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*'));
-    return regex.test(relativePath);
+    return globToRegex(pattern).test(relativePath);
   });
 });
 
@@ -111,13 +144,22 @@ let totalScore = 100;
 
 for (const filePath of filesToReview) {
   const relativePath = path.relative(process.cwd(), filePath);
-  const content = fs.readFileSync(filePath, 'utf8');
-  const lines = content.split('\n');
+  let content;
+  let lines;
+  
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+    lines = content.split('\n');
+  } catch (err) {
+    console.warn(`Skipping unreadable file: ${relativePath}`);
+    continue;
+  }
+  
   const fileFindings = [];
 
   // Rule 1: Hero line limits
-  if (rules.hero_max_lines.enabled && (content.includes('<h1') || content.includes('h1>'))) {
-    const hasWideContainer = /max-w-(5xl|6xl|7xl|8xl|9xl|full|\[\d+px\])/.test(content);
+  if (rules.hero_max_lines.enabled && /\b<h1\b/.test(content)) {
+    const hasWideContainer = /max-w-(5xl|6xl|7xl|8xl|9xl|full|\[[^\]]+\])/.test(content);
     const hasClamp = content.includes('clamp(');
     
     if (!hasWideContainer) {
@@ -138,18 +180,19 @@ for (const filePath of filesToReview) {
   }
 
   // Rule 2: Bento grid density
-  if (rules.bento_grid_density.enabled && content.includes('grid')) {
+  if (rules.bento_grid_density.enabled && /\bgrid\b/.test(content)) {
     const hasDenseFlow = content.includes('grid-flow-dense') || content.includes('grid-auto-flow: dense');
-    const hasColSpan = content.includes('col-span-');
+    const hasColSpan = /\bcol-span-/.test(content);
+    const hasRowSpan = /\brow-span-/.test(content);
     
-    if (hasColSpan && !hasDenseFlow) {
+    if ((hasColSpan || hasRowSpan) && !hasDenseFlow) {
       fileFindings.push({
         rule: 'bento_grid_density',
         status: 'warn',
         line: null,
-        message: 'Grid with col-span should use grid-flow-dense to prevent empty cells.'
+        message: 'Grid with col-span/row-span should use grid-flow-dense to prevent empty cells.'
       });
-    } else if (hasColSpan && hasDenseFlow) {
+    } else if ((hasColSpan || hasRowSpan) && hasDenseFlow) {
       fileFindings.push({
         rule: 'bento_grid_density',
         status: 'pass',
@@ -161,8 +204,8 @@ for (const filePath of filesToReview) {
 
   // Rule 3: Section spacing
   if (rules.section_spacing.enabled) {
-    const hasSpacing = new RegExp(`py-(3[2-9]|[4-9][0-9])`).test(content);
-    const hasSection = content.includes('<section') || content.includes('className=') && content.includes('py-');
+    const hasSpacing = /\bpy-(3[2-9]|[4-9][0-9])\b/.test(content) || /\bpy-\[[^\]]+\]\b/.test(content);
+    const hasSection = /\b<section\b/.test(content) && /\bpy-/.test(content);
     
     if (hasSection && !hasSpacing) {
       fileFindings.push({
@@ -183,9 +226,10 @@ for (const filePath of filesToReview) {
 
   // Rule 4: GSAP motion
   if (rules.gsap_motion.enabled) {
-    const hasGSAP = content.includes('gsap') || content.includes('ScrollTrigger');
-    const hasHoverPhysics = content.includes('group-hover:scale-') || content.includes('transition-transform');
-    const hasClickable = content.includes('onClick') || content.includes('href=') || content.includes('<a ');
+    const hasGSAP = /\bgsap\b/.test(content) || /\bScrollTrigger\b/.test(content);
+    const hasHoverPhysics = /group-hover:scale-\d+/.test(content) && /transition-transform/.test(content);
+    const hasClickable = /\bonClick\b|\bhref=\b|\b<a\b/.test(content);
+    const hasOverflowHidden = /overflow-hidden/.test(content);
     
     if (hasGSAP) {
       fileFindings.push({
@@ -211,11 +255,21 @@ for (const filePath of filesToReview) {
         message: 'Hover physics found on interactive elements.'
       });
     }
+    
+    if (hasClickable && !hasOverflowHidden) {
+      fileFindings.push({
+        rule: 'gsap_motion',
+        status: 'warn',
+        line: null,
+        message: 'Interactive elements should be wrapped in overflow-hidden containers for hover effects.'
+      });
+    }
   }
 
   // Rule 5: Meta-label ban
   if (rules.meta_label_ban.enabled) {
-    const bannedRegex = new RegExp(`(${rules.meta_label_ban.banned_labels.join('|').replace(/\s+/g, '\\s+')})`, 'gi');
+    const bannedLabels = rules.meta_label_ban.banned_labels.map(escapeRegExp).join('|');
+    const bannedRegex = new RegExp(`\\b(${bannedLabels})\\b`, 'gi');
     
     lines.forEach((line, idx) => {
       const match = line.match(bannedRegex);
@@ -241,17 +295,18 @@ for (const filePath of filesToReview) {
 
   // Rule 6: Button contrast
   if (rules.button_contrast.enabled) {
-    const hasButtons = content.includes('<button') || content.includes('role="button"');
-    const hasExplicitColors = /bg-\[?#/.test(content) && /text-\[?#/.test(content);
+    const hasButtons = /<button\b/.test(content) || /role="button"/.test(content);
+    const hasExplicitBg = /\bbg-(black|white|transparent|#[\w]+|\[[^\]]+\])\b/.test(content);
+    const hasExplicitText = /\btext-(black|white|#[\w]+|\[[^\]]+\])\b/.test(content);
     
-    if (hasButtons && !hasExplicitColors) {
+    if (hasButtons && (!hasExplicitBg || !hasExplicitText)) {
       fileFindings.push({
         rule: 'button_contrast',
         status: 'warn',
         line: null,
         message: 'Buttons should have explicit background and text colors for proper contrast.'
       });
-    } else if (hasButtons && hasExplicitColors) {
+    } else if (hasButtons && hasExplicitBg && hasExplicitText) {
       fileFindings.push({
         rule: 'button_contrast',
         status: 'pass',
@@ -261,13 +316,14 @@ for (const filePath of filesToReview) {
     }
   }
 
-  // Rule 7: Typography
+  // Rule 7: Typography - FIXED: Use proper regex escaping
   if (rules.typography.enabled) {
     let hasBanned = false;
     let hasApproved = false;
     
     for (const font of rules.typography.banned_fonts) {
-      const regex = new RegExp(`font-family.*${font}|font-[${font.toLowerCase()}]`, 'i');
+      // Use word boundaries and proper escaping
+      const regex = new RegExp(`font-family[^;]*${escapeRegExp(font)}|font-\['?${escapeRegExp(font)}'?\]`, 'i');
       if (regex.test(content)) {
         hasBanned = true;
         fileFindings.push({
@@ -280,7 +336,7 @@ for (const filePath of filesToReview) {
     }
     
     for (const font of rules.typography.approved_fonts) {
-      const regex = new RegExp(`font-family.*${font}|${font.toLowerCase()}`, 'i');
+      const regex = new RegExp(`font-family[^;]*${escapeRegExp(font)}|font-\['?${escapeRegExp(font)}'?\]`, 'i');
       if (regex.test(content)) {
         hasApproved = true;
       }
@@ -291,7 +347,7 @@ for (const filePath of filesToReview) {
         rule: 'typography',
         status: 'pass',
         line: null,
-        message: `Approved font found.`
+        message: 'Approved font found.'
       });
     }
   }
@@ -318,23 +374,25 @@ for (const filePath of filesToReview) {
     }
   }
 
-  // Rule 9: AIDA structure (check for basic structure)
+  // Rule 9: AIDA structure - FIXED: Use stricter checks
   if (rules.aida_structure.enabled && (relativePath.includes('page') || relativePath.includes('layout'))) {
-    const hasNav = content.includes('<nav') || content.includes('navigation') || content.includes('nav-');
-    const hasHero = content.includes('hero') || content.includes('Hero');
-    const hasFooter = content.includes('<footer') || content.includes('Footer');
+    const hasNav = /<nav\b/.test(content) || /\brole="navigation"/.test(content);
+    const hasHero = /\bhero\b/i.test(content);
+    const hasFooter = /<footer\b/.test(content);
+    const hasContentSections = (content.match(/<section\b/g) || []).length >= 2;
     
-    if (hasNav && hasHero && hasFooter) {
+    if (hasNav && hasHero && hasFooter && hasContentSections) {
       fileFindings.push({
         rule: 'aida_structure',
         status: 'pass',
         line: null,
-        message: 'Page has Navigation, Hero, and Footer structure.'
+        message: 'Page has Navigation, Hero, Content Sections, and Footer structure.'
       });
     } else {
       const missing = [];
       if (!hasNav) missing.push('navigation');
       if (!hasHero) missing.push('hero');
+      if (!hasContentSections) missing.push('content sections');
       if (!hasFooter) missing.push('footer');
       
       fileFindings.push({

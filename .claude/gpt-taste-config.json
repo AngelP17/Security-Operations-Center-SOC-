@@ -1,5 +1,6 @@
 {
   "enforcement_mode": "soft",
+  "review_threshold": 75,
   "include_patterns": [
     "app/**/*.tsx",
     "app/**/*.ts",
@@ -19,29 +20,21 @@
     ".next/**",
     "scripts/**"
   ],
-  "review_threshold": 75,
   "rules": {
     "hero_max_lines": {
       "enabled": true,
       "max_lines": 3,
-      "min_container_width": "max-w-5xl",
-      "message": "Hero H1 must not exceed 2-3 lines. Use wider containers (max-w-5xl or wider) and smaller font sizes."
+      "min_container_width": "max-w-5xl"
     },
     "bento_grid_density": {
-      "enabled": true,
-      "require_grid_flow_dense": true,
-      "message": "Bento grids must use grid-flow-dense with mathematically verified col-span/row-span values to prevent empty cells."
+      "enabled": true
     },
     "section_spacing": {
       "enabled": true,
-      "min_vertical_padding": "py-32",
-      "message": "Major sections must have minimum py-32 md:py-48 spacing between them."
+      "min_vertical_padding": "py-32"
     },
     "gsap_motion": {
-      "enabled": true,
-      "require_hover_physics": true,
-      "require_scroll_animations": true,
-      "message": "Interactive elements must have GSAP hover physics (group-hover:scale-105) and scroll animations (ScrollTrigger)."
+      "enabled": true
     },
     "meta_label_ban": {
       "enabled": true,
@@ -63,15 +56,10 @@
         "PHASE 01",
         "PHASE 02",
         "PHASE 03"
-      ],
-      "message": "Cheap meta-labels like 'SECTION 01' or 'QUESTION 05' are banned. Use descriptive text instead."
+      ]
     },
     "button_contrast": {
-      "enabled": true,
-      "min_contrast_ratio": 4.5,
-      "dark_bg_text": "#ffffff",
-      "light_bg_text": "#080b10",
-      "message": "Button text must be perfectly legible. Dark background requires white text, light background requires dark text."
+      "enabled": true
     },
     "typography": {
       "enabled": true,
@@ -85,21 +73,13 @@
         "Inter",
         "Arial",
         "Helvetica"
-      ],
-      "message": "Must use approved fonts (Satoshi, Cabinet Grotesk, Outfit, Geist). Inter is strictly banned."
+      ]
     },
     "horizontal_scroll_prevention": {
-      "enabled": true,
-      "require_overflow_hidden": true,
-      "message": "Page must be wrapped in overflow-x-hidden w-full max-w-full to prevent horizontal scrollbars."
+      "enabled": true
     },
     "aida_structure": {
-      "enabled": true,
-      "require_navigation": true,
-      "require_hero": true,
-      "require_content_sections": true,
-      "require_footer": true,
-      "message": "Page must follow AIDA structure: Navigation -> Hero -> Content Sections -> Footer."
+      "enabled": true
     }
   }
 }

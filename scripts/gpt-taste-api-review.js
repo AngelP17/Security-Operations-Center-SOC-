@@ -20,6 +20,18 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 const CHANGED_FILES = (process.env.CHANGED_FILES || '').split(' ').filter(Boolean);
 const REVIEW_OUTPUT = process.env.REVIEW_OUTPUT || './gpt-taste-review.json';
 
+// Utility: Escape regex special characters
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Utility: Convert glob pattern to regex
+function globToRegex(pattern) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const regex = '^' + escaped.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*') + '$';
+  return new RegExp(regex);
+}
+
 if (!ANTHROPIC_API_KEY) {
   console.error('Error: ANTHROPIC_API_KEY environment variable is required');
   process.exit(1);
@@ -27,7 +39,6 @@ if (!ANTHROPIC_API_KEY) {
 
 if (CHANGED_FILES.length === 0) {
   console.log('No changed files to review');
-  // Write a passing review with no findings
   fs.writeFileSync(REVIEW_OUTPUT, JSON.stringify({
     overall_score: 100,
     pass: true,
@@ -38,28 +49,62 @@ if (CHANGED_FILES.length === 0) {
 }
 
 // Load configuration
-const configPath = path.join(process.cwd(), '.claude', 'gpt-taste-config.json');
-if (!fs.existsSync(configPath)) {
-  console.error('Error: GPT-Taste configuration not found at .claude/gpt-taste-config.json');
+let config;
+try {
+  const configPath = path.join(process.cwd(), '.claude', 'gpt-taste-config.json');
+  if (!fs.existsSync(configPath)) {
+    console.error('Error: GPT-Taste configuration not found at .claude/gpt-taste-config.json');
+    process.exit(1);
+  }
+  config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+} catch (err) {
+  console.error('Error loading config:', err.message);
   process.exit(1);
 }
-
-const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
 // Read changed files
 const filesToReview = [];
 for (const filePath of CHANGED_FILES) {
   const fullPath = path.join(process.cwd(), filePath);
-  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+  
+  // Skip sensitive files
+  const SENSITIVE_PATTERNS = /(\b\.env|\.pem|\.key|secrets|credentials|password)\b/i;
+  if (SENSITIVE_PATTERNS.test(filePath)) {
+    console.warn(`Skipping sensitive file: ${filePath}`);
+    continue;
+  }
+  
+  // Only process text files
+  const ALLOWED_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.css', '.scss'];
+  if (!ALLOWED_EXTS.includes(path.extname(filePath))) {
+    continue;
+  }
+  
+  try {
+    const stat = fs.statSync(fullPath);
+    if (!stat.isFile()) continue;
+    
     // Skip excluded patterns
     const isExcluded = config.exclude_patterns.some(pattern => {
-      const regex = new RegExp(pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*'));
-      return regex.test(filePath);
+      return globToRegex(pattern).test(filePath);
     });
     
     if (!isExcluded) {
+      // Skip files > 5MB
+      if (stat.size > 5 * 1024 * 1024) {
+        console.warn(`Skipping large file: ${filePath} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
+        continue;
+      }
+      
       const content = fs.readFileSync(fullPath, 'utf8');
-      // Sanitize: truncate very large files
+      
+      // Skip binary files (null byte check)
+      if (Buffer.from(content).includes(0x00)) {
+        console.warn(`Skipping binary file: ${filePath}`);
+        continue;
+      }
+      
+      // Truncate very large files
       const maxLength = 8000;
       const sanitized = content.length > maxLength 
         ? content.substring(0, maxLength) + '\n\n// ... [truncated for review]'
@@ -70,6 +115,8 @@ for (const filePath of CHANGED_FILES) {
         content: sanitized
       });
     }
+  } catch (err) {
+    console.warn(`Skipping unreadable file: ${filePath} - ${err.message}`);
   }
 }
 
@@ -139,7 +186,8 @@ function buildPrompt(files, config) {
   for (const file of files) {
     prompt += `### ${file.path}\n\n`;
     prompt += '```tsx\n';
-    prompt += file.content;
+    // Escape backticks to prevent breaking the prompt
+    prompt += file.content.replace(/```/g, '\\`\\`\\`');
     prompt += '\n```\n\n';
   }
 
@@ -199,10 +247,19 @@ async function callAnthropicAPI(prompt) {
         'anthropic-version': '2023-06-01',
         'Content-Length': Buffer.byteLength(requestBody)
       },
-      timeout: 120000 // 2 minute timeout
+      timeout: 120000
     };
 
     const req = https.request(options, (res) => {
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        let errorData = '';
+        res.on('data', chunk => errorData += chunk);
+        res.on('end', () => {
+          reject(new Error(`Anthropic API returned ${res.statusCode}: ${errorData}`));
+        });
+        return;
+      }
+      
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
@@ -215,11 +272,22 @@ async function callAnthropicAPI(prompt) {
           
           const content = response.content?.[0]?.text || '';
           
-          // Extract JSON from response
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          // Extract JSON from response - look for the outermost valid JSON object
+          const jsonMatch = content.match(/\{[\s\S]*?"findings"[\s\S]*?\}/);
           if (jsonMatch) {
-            const review = JSON.parse(jsonMatch[0]);
-            resolve(review);
+            try {
+              const review = JSON.parse(jsonMatch[0]);
+              resolve(review);
+            } catch (parseErr) {
+              // Try greedy match if non-greedy fails
+              const greedyMatch = content.match(/\{[\s\S]*\}/);
+              if (greedyMatch) {
+                const review = JSON.parse(greedyMatch[0]);
+                resolve(review);
+              } else {
+                reject(new Error('Could not extract valid JSON from API response'));
+              }
+            }
           } else {
             reject(new Error('Could not extract JSON from API response'));
           }
@@ -235,7 +303,7 @@ async function callAnthropicAPI(prompt) {
 
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('API request timed out'));
+      reject(new Error('API request timed out after 120s'));
     });
 
     req.write(requestBody);
@@ -252,8 +320,10 @@ function localReview(files, config) {
     const content = file.content;
     
     // Check hero line limits
-    if (content.includes('h1') || content.includes('<h1')) {
-      const hasWideContainer = /max-w-(5xl|6xl|7xl|8xl|9xl|full|\[\d+px\])/.test(content);
+    if (/\b<h1\b/.test(content)) {
+      const hasWideContainer = /max-w-(5xl|6xl|7xl|8xl|9xl|full|\[[^\]]+\])/.test(content);
+      const hasClamp = content.includes('clamp(');
+      
       if (!hasWideContainer) {
         findings.push({
           rule: 'hero_max_lines',
@@ -267,7 +337,7 @@ function localReview(files, config) {
     }
     
     // Check bento grid density
-    if (content.includes('grid') && (content.includes('bento') || content.includes('col-span'))) {
+    if (/\bgrid\b/.test(content) && (/\bcol-span-/.test(content) || /\brow-span-/.test(content))) {
       const hasDenseFlow = content.includes('grid-flow-dense') || content.includes('grid-auto-flow: dense');
       if (!hasDenseFlow) {
         findings.push({
@@ -282,8 +352,8 @@ function localReview(files, config) {
     }
     
     // Check section spacing
-    if (content.includes('section') || content.includes('py-')) {
-      const hasAdequateSpacing = /py-(3[2-9]|[4-9][0-9])/.test(content);
+    if (/\b<section\b/.test(content) || /\bpy-/.test(content)) {
+      const hasAdequateSpacing = /\bpy-(3[2-9]|[4-9][0-9])\b/.test(content) || /\bpy-\[[^\]]+\]\b/.test(content);
       if (!hasAdequateSpacing) {
         findings.push({
           rule: 'section_spacing',
@@ -297,8 +367,10 @@ function localReview(files, config) {
     }
     
     // Check GSAP motion
-    if (content.includes('onClick') || content.includes('href=') || content.includes('group-hover')) {
-      const hasHoverPhysics = content.includes('group-hover:scale-') || content.includes('transition-transform');
+    if (/\bonClick\b|\bhref=\b|\bgroup-hover/.test(content)) {
+      const hasHoverPhysics = /group-hover:scale-\d+/.test(content) && /transition-transform/.test(content);
+      const hasOverflowHidden = /overflow-hidden/.test(content);
+      
       if (!hasHoverPhysics) {
         findings.push({
           rule: 'gsap_motion',
@@ -309,50 +381,74 @@ function localReview(files, config) {
         });
         score -= 5;
       }
+      
+      if (!hasOverflowHidden) {
+        findings.push({
+          rule: 'gsap_motion',
+          status: 'warn',
+          file: file.path,
+          line: null,
+          message: 'Interactive elements should be wrapped in overflow-hidden containers for hover effects.'
+        });
+        score -= 5;
+      }
     }
     
-    // Check meta labels
-    const metaLabelRegex = /(SECTION\s+\d+|QUESTION\s+\d+|STEP\s+\d+|PHASE\s+\d+|ABOUT\s+US)/gi;
-    if (metaLabelRegex.test(content)) {
-      findings.push({
-        rule: 'meta_label_ban',
-        status: 'fail',
-        file: file.path,
-        line: null,
-        message: 'Banned meta-label found. Use descriptive text instead of numbered sections.'
-      });
-      score -= 15;
+    // Check meta labels - use config
+    if (config.rules.meta_label_ban.enabled) {
+      const bannedLabels = config.rules.meta_label_ban.banned_labels.map(escapeRegExp).join('|');
+      const metaLabelRegex = new RegExp(`\\b(${bannedLabels})\\b`, 'gi');
+      
+      if (metaLabelRegex.test(content)) {
+        findings.push({
+          rule: 'meta_label_ban',
+          status: 'fail',
+          file: file.path,
+          line: null,
+          message: 'Banned meta-label found. Use descriptive text instead of numbered sections.'
+        });
+        score -= 15;
+      }
     }
     
     // Check button contrast
-    if (content.includes('button') || content.includes('Button')) {
-      const hasContrast = /bg-\[?#/.test(content) || /text-\[?#/.test(content);
-      if (!hasContrast) {
+    if (/<button\b/.test(content) || /role="button"/.test(content)) {
+      const hasExplicitBg = /\bbg-(black|white|transparent|#[\w]+|\[[^\]]+\])\b/.test(content);
+      const hasExplicitText = /\btext-(black|white|#[\w]+|\[[^\]]+\])\b/.test(content);
+      
+      if (!hasExplicitBg || !hasExplicitText) {
         findings.push({
           rule: 'button_contrast',
           status: 'warn',
           file: file.path,
           line: null,
-          message: 'Ensure buttons have explicit contrast colors for text legibility.'
+          message: 'Ensure buttons have explicit background and text colors for proper contrast.'
         });
         score -= 5;
       }
     }
     
     // Check typography
-    const hasBannedFont = config.rules.typography.banned_fonts.some(font => {
-      const regex = new RegExp(`font-family.*${font}|className.*${font.toLowerCase()}`, 'i');
-      return regex.test(content);
-    });
-    if (hasBannedFont) {
-      findings.push({
-        rule: 'typography',
-        status: 'fail',
-        file: file.path,
-        line: null,
-        message: `Banned font detected. Use approved fonts: ${config.rules.typography.approved_fonts.join(', ')}`
-      });
-      score -= 15;
+    if (config.rules.typography.enabled) {
+      let hasBanned = false;
+      
+      for (const font of config.rules.typography.banned_fonts) {
+        const regex = new RegExp(`font-family[^;]*${escapeRegExp(font)}|font-\['?${escapeRegExp(font)}'?\]`, 'i');
+        if (regex.test(content)) {
+          hasBanned = true;
+          findings.push({
+            rule: 'typography',
+            status: 'fail',
+            file: file.path,
+            line: null,
+            message: `Banned font detected. Use approved fonts: ${config.rules.typography.approved_fonts.join(', ')}`
+          });
+        }
+      }
+      
+      if (hasBanned) {
+        score -= 15;
+      }
     }
     
     // Check horizontal scroll prevention
@@ -365,6 +461,31 @@ function localReview(files, config) {
           file: file.path,
           line: null,
           message: 'Add overflow-x-hidden to prevent horizontal scrollbars from off-screen animations.'
+        });
+        score -= 5;
+      }
+    }
+    
+    // Check AIDA structure
+    if (config.rules.aida_structure.enabled && (file.path.includes('page') || file.path.includes('layout'))) {
+      const hasNav = /<nav\b/.test(content) || /\brole="navigation"/.test(content);
+      const hasHero = /\bhero\b/i.test(content);
+      const hasFooter = /<footer\b/.test(content);
+      const hasContentSections = /<section\b/g.test(content) && (content.match(/<section\b/g) || []).length >= 2;
+      
+      const missing = [];
+      if (!hasNav) missing.push('navigation');
+      if (!hasHero) missing.push('hero');
+      if (!hasContentSections) missing.push('content sections');
+      if (!hasFooter) missing.push('footer');
+      
+      if (missing.length > 0) {
+        findings.push({
+          rule: 'aida_structure',
+          status: 'warn',
+          file: file.path,
+          line: null,
+          message: `Missing AIDA elements: ${missing.join(', ')}. Ensure Navigation -> Hero -> Content -> Footer structure.`
         });
         score -= 5;
       }
