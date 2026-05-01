@@ -1,4 +1,3 @@
-import pytest
 from apps.api.config import settings
 
 

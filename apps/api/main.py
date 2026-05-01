@@ -3,23 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from apps.api.config import settings
 from apps.api.models.database import Base, engine, apply_sqlite_additive_migrations
-from apps.api.models import (
-    Asset,
-    ScanRun,
-    ScanObservation,
-    ScanHostResult,
-    ScanPortResult,
-    ScanAuthorizationScope,
-    SecurityEvent,
-    RiskDecision,
-    Incident,
-    IncidentAssetLink,
-    Recommendation,
-    AuditRecord,
-    AnalystFeedback,
-    AetherLink,
-    OUICacheEntry,
-)
 from apps.api.routes.command import router as command_router
 from apps.api.routes.assets import router as assets_router
 from apps.api.routes.events import router as events_router

@@ -8,7 +8,7 @@ from apps.api.config import settings
 from apps.api.models.incident import Incident, IncidentAssetLink, Recommendation
 from apps.api.models.asset import Asset
 from apps.api.models.risk import RiskDecision
-from apps.api.models.audit import AetherLink, AuditRecord
+from apps.api.models.audit import AetherLink
 from apps.api.services.replay_service import replay_service
 from fastapi import HTTPException
 
@@ -49,7 +49,7 @@ class AetherClient:
 
         risk_decision = (
             db.query(RiskDecision)
-            .filter(RiskDecision.asset_id.in_([l.asset_id for l in links]))
+            .filter(RiskDecision.asset_id.in_([link.asset_id for link in links]))
             .first()
         )
 

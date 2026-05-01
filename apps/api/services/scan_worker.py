@@ -7,8 +7,7 @@ cancelled, completed, failed).
 import datetime
 import json
 import threading
-import time
-from typing import Callable, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -19,7 +18,6 @@ from apps.api.models.scan import (
     ScanAuthorizationScope,
 )
 from apps.api.models.asset import Asset
-from apps.api.models.event import SecurityEvent
 from apps.api.models.risk import RiskDecision
 from apps.api.models.database import SessionLocal
 from apps.api.config import settings
@@ -59,7 +57,7 @@ class ScanWorker:
         scopes = (
             db.query(ScanAuthorizationScope)
             .filter(
-                ScanAuthorizationScope.is_active == True,
+                ScanAuthorizationScope.is_active.is_(True),
                 ScanAuthorizationScope.expires_at > datetime.datetime.utcnow(),
             )
             .all()
@@ -284,7 +282,7 @@ class ScanWorker:
 
                 # Create security event
                 event_uid = f"evt-{datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{id(host_result) % 10000:04d}"
-                event = event_service.create_event(
+                event_service.create_event(
                     db,
                     {
                         "event_uid": event_uid,

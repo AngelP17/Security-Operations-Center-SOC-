@@ -9,13 +9,10 @@ Features:
 """
 
 import ipaddress
-import json
 import re
 import socket
 import ssl
-import struct
 import subprocess
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional

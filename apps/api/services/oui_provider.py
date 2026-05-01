@@ -5,10 +5,7 @@ Falls back to built-in static mapping when offline.
 """
 
 import csv
-import datetime
-import json
 import os
-import re
 from typing import Optional
 
 from sqlalchemy.orm import Session

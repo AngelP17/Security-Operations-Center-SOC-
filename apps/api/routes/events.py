@@ -2,7 +2,6 @@ import json
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from apps.api.deps import get_db
 from apps.api.models.event import SecurityEvent

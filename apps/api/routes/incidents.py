@@ -7,14 +7,12 @@ from apps.api.deps import get_db
 from apps.api.models.incident import Incident, IncidentAssetLink, Recommendation
 from apps.api.models.asset import Asset
 from apps.api.models.risk import RiskDecision
-from apps.api.models.event import SecurityEvent
 from apps.api.models.audit import AetherLink
 from apps.api.schemas.incidents import (
     IncidentResponse,
     IncidentListResponse,
     RecommendationResponse,
     TimelineItem,
-    AetherTicketResponse,
 )
 from apps.api.services.event_service import event_service
 from apps.api.services.replay_service import replay_service

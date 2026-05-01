@@ -276,15 +276,15 @@ class ScanService:
         )
         host_ips = {item.ip_address for item in host_results}
         candidate_assets = (
-            db.query(Asset)
-            .filter(Asset.ip_address.in_(host_ips))
-            .all()
+            db.query(Asset).filter(Asset.ip_address.in_(host_ips)).all()
             if host_ips
             else []
         )
         asset_ids = {asset.id for asset in candidate_assets}
 
-        query = db.query(SecurityEvent).filter(SecurityEvent.source == "exposure_engine")
+        query = db.query(SecurityEvent).filter(
+            SecurityEvent.source == "exposure_engine"
+        )
         if asset_ids:
             query = query.filter(SecurityEvent.asset_id.in_(asset_ids))
         if scan.started_at:
@@ -390,7 +390,7 @@ class ScanService:
             assets_discovered += 1
 
             event_uid = f"evt-{uuid.uuid4().hex[:10]}"
-            event = event_service.create_event(
+            event_service.create_event(
                 db,
                 {
                     "event_uid": event_uid,
@@ -672,6 +672,204 @@ class ScanService:
             else None,
             "error_message": scan.error_message,
         }
+
+    # --- Scan Authorization Scopes ---
+
+    def create_scan_scope(self, db: Session, data: dict) -> dict:
+        """Create a new scan authorization scope."""
+        import ipaddress
+
+        try:
+            ipaddress.ip_network(data["cidr"], strict=False)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid CIDR: {data['cidr']}")
+
+        scope = ScanAuthorizationScope(
+            cidr=data["cidr"],
+            site=data.get("site", ""),
+            environment=data.get("environment", "production"),
+            approved_by=data.get("approved_by", ""),
+            approval_ticket=data.get("approval_ticket", ""),
+            expires_at=datetime.datetime.fromisoformat(data["expires_at"])
+            if data.get("expires_at")
+            else None,
+            allowed_profiles_json=json.dumps(data.get("allowed_profiles", [])),
+            is_active=data.get("is_active", True),
+        )
+        db.add(scope)
+        db.commit()
+        db.refresh(scope)
+        return {
+            "id": scope.id,
+            "cidr": scope.cidr,
+            "site": scope.site,
+            "environment": scope.environment,
+            "approved_by": scope.approved_by,
+            "expires_at": scope.expires_at.isoformat() if scope.expires_at else None,
+            "allowed_profiles": json.loads(scope.allowed_profiles_json or "[]"),
+            "is_active": scope.is_active,
+            "created_at": scope.created_at.isoformat() if scope.created_at else None,
+        }
+
+    def list_scan_scopes(self, db: Session) -> dict:
+        """List all scan authorization scopes."""
+        scopes = (
+            db.query(ScanAuthorizationScope)
+            .order_by(ScanAuthorizationScope.created_at.desc())
+            .all()
+        )
+        return {
+            "items": [
+                {
+                    "id": s.id,
+                    "cidr": s.cidr,
+                    "site": s.site,
+                    "environment": s.environment,
+                    "approved_by": s.approved_by,
+                    "approval_ticket": s.approval_ticket,
+                    "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+                    "allowed_profiles": json.loads(s.allowed_profiles_json or "[]"),
+                    "is_active": s.is_active,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                }
+                for s in scopes
+            ],
+            "total": len(scopes),
+        }
+
+    def delete_scan_scope(self, db: Session, scope_id: int) -> dict:
+        """Delete a scan authorization scope."""
+        scope = (
+            db.query(ScanAuthorizationScope)
+            .filter(ScanAuthorizationScope.id == scope_id)
+            .first()
+        )
+        if not scope:
+            raise HTTPException(status_code=404, detail="Scope not found")
+        db.delete(scope)
+        db.commit()
+        return {"id": scope_id, "deleted": True}
+
+    # --- Evidence Export ---
+
+    def export_scan_json(self, db: Session, scan_run_id: int) -> dict:
+        """Export full scan evidence as JSON package."""
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        hosts = (
+            db.query(ScanHostResult)
+            .filter(ScanHostResult.scan_run_id == scan_run_id)
+            .all()
+        )
+        ports = (
+            db.query(ScanPortResult)
+            .filter(ScanPortResult.scan_run_id == scan_run_id)
+            .all()
+        )
+        findings = self.get_scan_findings(db, scan_run_id)
+
+        return {
+            "scan": {
+                "scan_uid": scan.scan_uid,
+                "mode": scan.mode,
+                "target_cidr": scan.target_cidr,
+                "profile": scan.profile,
+                "status": scan.status,
+                "started_at": scan.started_at.isoformat() if scan.started_at else None,
+                "completed_at": scan.completed_at.isoformat()
+                if scan.completed_at
+                else None,
+            },
+            "hosts": [
+                {
+                    "ip_address": h.ip_address,
+                    "hostname": h.hostname,
+                    "mac_address": h.mac_address,
+                    "vendor": h.vendor,
+                    "asset_type": h.asset_type,
+                    "discovery_method": h.discovery_method,
+                    "ports_open": h.ports_open,
+                    "identity_confidence": h.identity_confidence,
+                }
+                for h in hosts
+            ],
+            "ports": [
+                {
+                    "ip_address": p.ip_address,
+                    "port": p.port,
+                    "protocol": p.protocol,
+                    "state": p.state,
+                    "service_guess": p.service_guess,
+                    "latency_ms": p.latency_ms,
+                    "evidence": json.loads(p.evidence_json or "{}"),
+                }
+                for p in ports
+            ],
+            "findings": findings.get("items", []),
+            "exported_at": datetime.datetime.utcnow().isoformat(),
+        }
+
+    def export_scan_csv(self, db: Session, scan_run_id: int) -> str:
+        """Export scan host results as CSV."""
+        import csv
+        import io
+
+        scan = db.query(ScanRun).filter(ScanRun.id == scan_run_id).first()
+        if not scan:
+            raise HTTPException(status_code=404, detail="Scan not found")
+
+        hosts = (
+            db.query(ScanHostResult)
+            .filter(ScanHostResult.scan_run_id == scan_run_id)
+            .all()
+        )
+        ports = (
+            db.query(ScanPortResult)
+            .filter(ScanPortResult.scan_run_id == scan_run_id)
+            .all()
+        )
+
+        port_map = {}
+        for p in ports:
+            if p.ip_address not in port_map:
+                port_map[p.ip_address] = []
+            port_map[p.ip_address].append(f"{p.port}/{p.protocol}={p.state}")
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(
+            [
+                "scan_uid",
+                "ip_address",
+                "hostname",
+                "mac_address",
+                "vendor",
+                "asset_type",
+                "discovery_method",
+                "ports_open_count",
+                "open_ports_detail",
+                "identity_confidence",
+            ]
+        )
+        for h in hosts:
+            writer.writerow(
+                [
+                    scan.scan_uid,
+                    h.ip_address,
+                    h.hostname,
+                    h.mac_address,
+                    h.vendor,
+                    h.asset_type,
+                    h.discovery_method,
+                    h.ports_open,
+                    "; ".join(port_map.get(h.ip_address, [])),
+                    h.identity_confidence,
+                ]
+            )
+
+        return output.getvalue()
 
 
 scan_service = ScanService()

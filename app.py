@@ -1,28 +1,29 @@
 import os
 import json
 import hashlib
-import secrets
 from functools import wraps
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_file
-from datetime import datetime, time, timedelta
+from flask import Flask, render_template, jsonify, request, session, redirect, send_file
+from datetime import datetime, timedelta
 import uuid
 from openpyxl import Workbook
 from io import BytesIO
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import socket
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'ticketing-dashboard-secret-key-2025')
+app.secret_key = os.environ.get("SECRET_KEY", "ticketing-dashboard-secret-key-2025")
 
 # Database URL from environment (Render provides this)
-DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # Check multiple locations for users file (local dev, Render secrets, Docker)
 USERS_FILE_LOCATIONS = [
-    '.env/users.json',              # Local development
-    '/etc/secrets/users_data.json', # Render secret files
-    'users.json',                   # Working directory fallback
+    ".env/users.json",  # Local development
+    "/etc/secrets/users_data.json",  # Render secret files
+    "users.json",  # Working directory fallback
 ]
+
 
 def get_users_file():
     """Find the users file from multiple possible locations."""
@@ -31,7 +32,9 @@ def get_users_file():
             return path
     return USERS_FILE_LOCATIONS[0]  # Default to first option
 
+
 USERS_FILE = get_users_file()
+
 
 # --- DATABASE FUNCTIONS ---
 def clean_database_url(url):
@@ -48,7 +51,7 @@ def clean_database_url(url):
         params = parse_qs(parsed.query)
 
         # Remove unsupported parameters (like channel_binding from Neon)
-        unsupported = ['channel_binding', 'options']
+        unsupported = ["channel_binding", "options"]
         for param in unsupported:
             params.pop(param, None)
 
@@ -57,20 +60,25 @@ def clean_database_url(url):
 
         # Reconstruct URL
         new_query = urlencode(clean_params)
-        clean_url = urlunparse((
-            parsed.scheme,
-            parsed.netloc,
-            parsed.path,
-            parsed.params,
-            new_query,
-            parsed.fragment
-        ))
+        clean_url = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                new_query,
+                parsed.fragment,
+            )
+        )
 
-        print(f"[DB] Cleaned URL parameters: removed {[p for p in unsupported if p in parse_qs(parsed.query)]}")
+        print(
+            f"[DB] Cleaned URL parameters: removed {[p for p in unsupported if p in parse_qs(parsed.query)]}"
+        )
         return clean_url
     except Exception as e:
         print(f"[DB] Warning: Could not parse URL, using as-is: {e}")
         return url
+
 
 def get_db_connection():
     """Get a database connection."""
@@ -85,6 +93,7 @@ def get_db_connection():
         print(f"[DB] ERROR: Failed to connect to database: {e}")
         return None
 
+
 def init_database():
     """Initialize the database tables."""
     conn = get_db_connection()
@@ -94,7 +103,7 @@ def init_database():
 
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS tickets (
                 id SERIAL PRIMARY KEY,
                 ticket_id VARCHAR(20) UNIQUE NOT NULL,
@@ -110,10 +119,10 @@ def init_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
-        
+        """)
+
         # SOC: Network devices table (enhanced)
-        cur.execute('''
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS network_devices (
                 id SERIAL PRIMARY KEY,
                 ip_address VARCHAR(45) UNIQUE NOT NULL,
@@ -128,10 +137,10 @@ def init_database():
                 first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 notes TEXT
             )
-        ''')
-        
+        """)
+
         # SOC: Security events log
-        cur.execute('''
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS security_events (
                 id SERIAL PRIMARY KEY,
                 event_type VARCHAR(50) NOT NULL,
@@ -140,10 +149,10 @@ def init_database():
                 description TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
-        
+        """)
+
         # Password reset tokens table
-        cur.execute('''
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(100) NOT NULL,
@@ -151,14 +160,14 @@ def init_database():
                 expires_at TIMESTAMP NOT NULL,
                 used INTEGER DEFAULT 0
             )
-        ''')
-        
+        """)
+
         conn.commit()
         print("[DB] Database initialized successfully")
 
         # Check if we need to migrate data from Excel
         cur.execute("SELECT COUNT(*) as count FROM tickets")
-        count = cur.fetchone()['count']
+        count = cur.fetchone()["count"]
         if count == 0:
             print("[DB] No tickets in database, attempting to migrate from Excel...")
             migrate_from_excel(conn)
@@ -171,15 +180,18 @@ def init_database():
     except Exception as e:
         print(f"[DB] ERROR initializing database: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 def migrate_from_excel(conn):
     """Migrate existing data from Excel file to database."""
     try:
         from openpyxl import load_workbook
-        EXCEL_FILE = 'tickets.xlsx'
-        SHEET_NAME = 'IT Service Tickets'
+
+        EXCEL_FILE = "tickets.xlsx"
+        SHEET_NAME = "IT Service Tickets"
 
         if not os.path.exists(EXCEL_FILE):
             print(f"[DB] Excel file {EXCEL_FILE} not found, skipping migration")
@@ -192,41 +204,53 @@ def migrate_from_excel(conn):
         migrated = 0
 
         for row in range(2, 1000):
-            title = ws[f'B{row}'].value
+            title = ws[f"B{row}"].value
             if not title:
                 break
 
-            ticket_id = f"IT-2025{row-1:04d}"
-            status = ws[f'C{row}'].value or 'Open'
-            priority = ws[f'D{row}'].value or 'Low'
-            request_type = ws[f'E{row}'].value or ''
-            staff_assigned = ws[f'F{row}'].value or ''
-            requester = ws[f'G{row}'].value or ''
-            date_val = ws[f'H{row}'].value
-            description = ws[f'J{row}'].value or ''
-            resolution = ws[f'K{row}'].value or ''
+            ticket_id = f"IT-2025{row - 1:04d}"
+            status = ws[f"C{row}"].value or "Open"
+            priority = ws[f"D{row}"].value or "Low"
+            request_type = ws[f"E{row}"].value or ""
+            staff_assigned = ws[f"F{row}"].value or ""
+            requester = ws[f"G{row}"].value or ""
+            date_val = ws[f"H{row}"].value
+            description = ws[f"J{row}"].value or ""
+            resolution = ws[f"K{row}"].value or ""
 
             # Handle date conversion
             if date_val is None:
                 date_opened = datetime.now().date()
-            elif hasattr(date_val, 'date'):
-                date_opened = date_val.date() if hasattr(date_val, 'date') else date_val
-            elif hasattr(date_val, 'strftime'):
+            elif hasattr(date_val, "date"):
+                date_opened = date_val.date() if hasattr(date_val, "date") else date_val
+            elif hasattr(date_val, "strftime"):
                 date_opened = date_val
             else:
                 try:
-                    date_opened = datetime.strptime(str(date_val), '%Y-%m-%d').date()
-                except:
+                    date_opened = datetime.strptime(str(date_val), "%Y-%m-%d").date()
+                except Exception:
                     date_opened = datetime.now().date()
 
-            cur.execute('''
+            cur.execute(
+                """
                 INSERT INTO tickets (ticket_id, title, status, priority, request_type,
                                     staff_assigned, requester, date_opened, description, resolution_notes)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (ticket_id) DO NOTHING
-            ''', (ticket_id, str(title).strip(), str(status).strip(), str(priority).strip(),
-                  str(request_type).strip(), str(staff_assigned).strip(), str(requester).strip(),
-                  date_opened, str(description).strip(), str(resolution).strip() if resolution else ''))
+            """,
+                (
+                    ticket_id,
+                    str(title).strip(),
+                    str(status).strip(),
+                    str(priority).strip(),
+                    str(request_type).strip(),
+                    str(staff_assigned).strip(),
+                    str(requester).strip(),
+                    date_opened,
+                    str(description).strip(),
+                    str(resolution).strip() if resolution else "",
+                ),
+            )
             migrated += 1
 
         conn.commit()
@@ -236,7 +260,9 @@ def migrate_from_excel(conn):
     except Exception as e:
         print(f"[DB] ERROR during Excel migration: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 # --- USER MANAGEMENT ---
 def load_users():
@@ -244,13 +270,15 @@ def load_users():
     try:
         users_path = get_users_file()
         print(f"[AUTH] Loading users from: {users_path}")
-        with open(users_path, 'r') as f:
+        with open(users_path, "r") as f:
             data = json.load(f)
-            users = data.get('users', [])
+            users = data.get("users", [])
             print(f"[AUTH] Loaded {len(users)} users successfully")
             return users
     except FileNotFoundError:
-        print(f"[AUTH] ERROR: Users file not found at any location: {USERS_FILE_LOCATIONS}")
+        print(
+            f"[AUTH] ERROR: Users file not found at any location: {USERS_FILE_LOCATIONS}"
+        )
         return []
     except json.JSONDecodeError as e:
         print(f"[AUTH] ERROR: Invalid JSON in users file: {e}")
@@ -259,46 +287,57 @@ def load_users():
         print(f"[AUTH] ERROR: Failed to load users: {e}")
         return []
 
+
 def save_users(users):
     """Save users to JSON file."""
-    with open(USERS_FILE, 'w') as f:
-        json.dump({'users': users}, f, indent=2)
+    with open(USERS_FILE, "w") as f:
+        json.dump({"users": users}, f, indent=2)
+
 
 def hash_password(password):
     """Hash password using SHA256."""
     return hashlib.sha256(password.encode()).hexdigest()
 
+
 def verify_password(password, password_hash):
     """Verify password against hash."""
     return hash_password(password) == password_hash
+
 
 def get_user(username):
     """Get user by username."""
     users = load_users()
     for user in users:
-        if user['username'] == username:
+        if user["username"] == username:
             return user
     return None
 
+
 def login_required(f):
     """Decorator to require login."""
+
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'user' not in session:
-            return jsonify({'error': 'Not authenticated'}), 401
+        if "user" not in session:
+            return jsonify({"error": "Not authenticated"}), 401
         return f(*args, **kwargs)
+
     return decorated
+
 
 def admin_required(f):
     """Decorator to require admin role."""
+
     @wraps(f)
     def decorated(*args, **kwargs):
-        if 'user' not in session:
-            return jsonify({'error': 'Not authenticated'}), 401
-        if session['user'].get('role') != 'admin':
-            return jsonify({'error': 'Admin access required'}), 403
+        if "user" not in session:
+            return jsonify({"error": "Not authenticated"}), 401
+        if session["user"].get("role") != "admin":
+            return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
+
     return decorated
+
 
 # --- DATABASE TICKET FUNCTIONS ---
 def read_tickets_from_db():
@@ -309,58 +348,66 @@ def read_tickets_from_db():
 
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute("""
             SELECT ticket_id, title, status, priority, request_type,
                    staff_assigned, requester, date_opened, description, resolution_notes
             FROM tickets
             ORDER BY date_opened DESC, id DESC
-        ''')
+        """)
         rows = cur.fetchall()
         cur.close()
         conn.close()
 
         tickets = []
         for row in rows:
-            date_opened = row['date_opened']
+            date_opened = row["date_opened"]
             if date_opened:
-                date_str = date_opened.strftime('%Y-%m-%d') if hasattr(date_opened, 'strftime') else str(date_opened)
+                date_str = (
+                    date_opened.strftime("%Y-%m-%d")
+                    if hasattr(date_opened, "strftime")
+                    else str(date_opened)
+                )
                 # Calculate days open
-                if row['status'] in ['Closed', 'Resolved']:
+                if row["status"] in ["Closed", "Resolved"]:
                     days_open = -1
                 else:
                     days_open = (datetime.now().date() - date_opened).days
                     if days_open < 0:
                         days_open = 0
             else:
-                date_str = ''
+                date_str = ""
                 days_open = 0
 
-            tickets.append({
-                'ticket_id': row['ticket_id'],
-                'title': row['title'] or '',
-                'status': row['status'] or 'Open',
-                'priority': row['priority'] or 'Low',
-                'request_type': row['request_type'] or '',
-                'staff_assigned': row['staff_assigned'] or '',
-                'requester': row['requester'] or '',
-                'date_opened': date_str,
-                'days_open': days_open,
-                'description': row['description'] or '',
-                'resolution_notes': row['resolution_notes'] or ''
-            })
+            tickets.append(
+                {
+                    "ticket_id": row["ticket_id"],
+                    "title": row["title"] or "",
+                    "status": row["status"] or "Open",
+                    "priority": row["priority"] or "Low",
+                    "request_type": row["request_type"] or "",
+                    "staff_assigned": row["staff_assigned"] or "",
+                    "requester": row["requester"] or "",
+                    "date_opened": date_str,
+                    "days_open": days_open,
+                    "description": row["description"] or "",
+                    "resolution_notes": row["resolution_notes"] or "",
+                }
+            )
 
         return tickets
     except Exception as e:
         print(f"[DB] ERROR reading tickets: {e}")
         import traceback
+
         traceback.print_exc()
         return []
+
 
 def get_next_ticket_id():
     """Generate the next ticket ID."""
     conn = get_db_connection()
     if not conn:
-        return 'IT-20250001'
+        return "IT-20250001"
 
     try:
         cur = conn.cursor()
@@ -371,12 +418,13 @@ def get_next_ticket_id():
 
         if row:
             # Extract number from ticket_id (e.g., IT-20250001 -> 20250001)
-            num = int(row['ticket_id'].replace('IT-', ''))
+            num = int(row["ticket_id"].replace("IT-", ""))
             return f"IT-{num + 1:08d}"
-        return 'IT-20250001'
+        return "IT-20250001"
     except Exception as e:
         print(f"[DB] ERROR getting next ticket ID: {e}")
-        return 'IT-20250001'
+        return "IT-20250001"
+
 
 def create_ticket_in_db(ticket_data):
     """Create a new ticket in the database."""
@@ -388,23 +436,26 @@ def create_ticket_in_db(ticket_data):
         cur = conn.cursor()
         ticket_id = get_next_ticket_id()
 
-        cur.execute('''
+        cur.execute(
+            """
             INSERT INTO tickets (ticket_id, title, status, priority, request_type,
                                 staff_assigned, requester, date_opened, description, resolution_notes)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING ticket_id
-        ''', (
-            ticket_id,
-            ticket_data.get('title', ''),
-            ticket_data.get('status', 'Open'),
-            ticket_data.get('priority', 'Low'),
-            ticket_data.get('request_type', ''),
-            ticket_data.get('staff_assigned', ''),
-            ticket_data.get('requester', ''),
-            datetime.now().date(),
-            ticket_data.get('description', ''),
-            ticket_data.get('resolution_notes', '')
-        ))
+        """,
+            (
+                ticket_id,
+                ticket_data.get("title", ""),
+                ticket_data.get("status", "Open"),
+                ticket_data.get("priority", "Low"),
+                ticket_data.get("request_type", ""),
+                ticket_data.get("staff_assigned", ""),
+                ticket_data.get("requester", ""),
+                datetime.now().date(),
+                ticket_data.get("description", ""),
+                ticket_data.get("resolution_notes", ""),
+            ),
+        )
 
         result = cur.fetchone()
         conn.commit()
@@ -412,12 +463,14 @@ def create_ticket_in_db(ticket_data):
         conn.close()
 
         print(f"[DB] Created ticket: {ticket_id}")
-        return result['ticket_id']
+        return result["ticket_id"]
     except Exception as e:
         print(f"[DB] ERROR creating ticket: {e}")
         import traceback
+
         traceback.print_exc()
         return None
+
 
 def update_ticket_in_db(ticket_id, ticket_data):
     """Update a ticket in the database."""
@@ -433,14 +486,14 @@ def update_ticket_in_db(ticket_id, ticket_data):
         values = []
 
         field_mapping = {
-            'title': 'title',
-            'status': 'status',
-            'priority': 'priority',
-            'request_type': 'request_type',
-            'staff_assigned': 'staff_assigned',
-            'requester': 'requester',
-            'description': 'description',
-            'resolution_notes': 'resolution_notes'
+            "title": "title",
+            "status": "status",
+            "priority": "priority",
+            "request_type": "request_type",
+            "staff_assigned": "staff_assigned",
+            "requester": "requester",
+            "description": "description",
+            "resolution_notes": "resolution_notes",
         }
 
         for key, db_field in field_mapping.items():
@@ -467,8 +520,10 @@ def update_ticket_in_db(ticket_id, ticket_data):
     except Exception as e:
         print(f"[DB] ERROR updating ticket: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 def delete_ticket_from_db(ticket_id):
     """Delete a ticket from the database."""
@@ -490,58 +545,83 @@ def delete_ticket_from_db(ticket_id):
         print(f"[DB] ERROR deleting ticket: {e}")
         return False
 
+
 def calculate_stats(tickets):
     """Calculates KPIs from the ticket list."""
     total = len(tickets)
-    open_count = sum(1 for t in tickets if t['status'] not in ['Closed', 'Resolved'])
-    closed_count = sum(1 for t in tickets if t['status'] in ['Closed', 'Resolved'])
-    critical = sum(1 for t in tickets if t['priority'] == 'Critical' and t['status'] not in ['Closed', 'Resolved'])
+    open_count = sum(1 for t in tickets if t["status"] not in ["Closed", "Resolved"])
+    closed_count = sum(1 for t in tickets if t["status"] in ["Closed", "Resolved"])
+    critical = sum(
+        1
+        for t in tickets
+        if t["priority"] == "Critical" and t["status"] not in ["Closed", "Resolved"]
+    )
 
     statuses = {}
     for t in tickets:
-        s = t['status']
+        s = t["status"]
         statuses[s] = statuses.get(s, 0) + 1
 
     priorities = {}
     for t in tickets:
-        p = t['priority']
+        p = t["priority"]
         priorities[p] = priorities.get(p, 0) + 1
 
     request_types = {}
     for t in tickets:
-        rt = t['request_type']
-        if rt and rt != 'nan':
+        rt = t["request_type"]
+        if rt and rt != "nan":
             request_types[rt] = request_types.get(rt, 0) + 1
 
     staff_workload = {}
     for t in tickets:
-        staff = t['staff_assigned']
-        if staff and staff != 'nan':
+        staff = t["staff_assigned"]
+        if staff and staff != "nan":
             if staff not in staff_workload:
-                staff_workload[staff] = {'assigned': 0, 'open': 0}
-            staff_workload[staff]['assigned'] += 1
-            if t['status'] not in ['Closed', 'Resolved']:
-                staff_workload[staff]['open'] += 1
+                staff_workload[staff] = {"assigned": 0, "open": 0}
+            staff_workload[staff]["assigned"] += 1
+            if t["status"] not in ["Closed", "Resolved"]:
+                staff_workload[staff]["open"] += 1
 
     return {
-        'total': total,
-        'open': open_count,
-        'closed': closed_count,
-        'critical': critical,
-        'statuses': statuses,
-        'priorities': priorities,
-        'request_types': request_types,
-        'staff_workload': staff_workload
+        "total": total,
+        "open": open_count,
+        "closed": closed_count,
+        "critical": critical,
+        "statuses": statuses,
+        "priorities": priorities,
+        "request_types": request_types,
+        "staff_workload": staff_workload,
     }
+
 
 def get_dropdown_options():
     """Get unique values for dropdown fields."""
     tickets = read_tickets_from_db()
     return {
-        'request_types': sorted(set(t['request_type'] for t in tickets if t['request_type'] and t['request_type'] != 'nan')),
-        'staff': sorted(set(t['staff_assigned'] for t in tickets if t['staff_assigned'] and t['staff_assigned'] != 'nan')),
-        'requesters': sorted(set(t['requester'] for t in tickets if t['requester'] and t['requester'] != 'nan'))
+        "request_types": sorted(
+            set(
+                t["request_type"]
+                for t in tickets
+                if t["request_type"] and t["request_type"] != "nan"
+            )
+        ),
+        "staff": sorted(
+            set(
+                t["staff_assigned"]
+                for t in tickets
+                if t["staff_assigned"] and t["staff_assigned"] != "nan"
+            )
+        ),
+        "requesters": sorted(
+            set(
+                t["requester"]
+                for t in tickets
+                if t["requester"] and t["requester"] != "nan"
+            )
+        ),
     }
+
 
 # --- EXCEL EXPORT FUNCTION ---
 def generate_excel_from_db():
@@ -553,27 +633,39 @@ def generate_excel_from_db():
     ws.title = "IT Service Tickets"
 
     # Header row
-    headers = ['Ticket ID', 'Title', 'Status', 'Priority', 'Request Type',
-               'Staff Assigned', 'Requester', 'Date Opened', 'Days Open',
-               'Description', 'Resolution Notes']
+    headers = [
+        "Ticket ID",
+        "Title",
+        "Status",
+        "Priority",
+        "Request Type",
+        "Staff Assigned",
+        "Requester",
+        "Date Opened",
+        "Days Open",
+        "Description",
+        "Resolution Notes",
+    ]
     ws.append(headers)
 
     # Data rows
     for t in tickets:
-        days_open = t['days_open'] if t['days_open'] != -1 else '-'
-        ws.append([
-            t['ticket_id'],
-            t['title'],
-            t['status'],
-            t['priority'],
-            t['request_type'],
-            t['staff_assigned'],
-            t['requester'],
-            t['date_opened'],
-            days_open,
-            t['description'],
-            t['resolution_notes']
-        ])
+        days_open = t["days_open"] if t["days_open"] != -1 else "-"
+        ws.append(
+            [
+                t["ticket_id"],
+                t["title"],
+                t["status"],
+                t["priority"],
+                t["request_type"],
+                t["staff_assigned"],
+                t["requester"],
+                t["date_opened"],
+                days_open,
+                t["description"],
+                t["resolution_notes"],
+            ]
+        )
 
     # Auto-adjust column widths
     for col in ws.columns:
@@ -583,194 +675,219 @@ def generate_excel_from_db():
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
+            except Exception:
                 pass
         adjusted_width = min(max_length + 2, 50)
         ws.column_dimensions[column].width = adjusted_width
 
     return wb
 
-# --- ROUTES ---
-@app.route('/login')
-def login_page():
-    if 'user' in session:
-        return redirect('/')
-    return render_template('login.html')
 
-@app.route('/api/login', methods=['POST'])
+# --- ROUTES ---
+@app.route("/login")
+def login_page():
+    if "user" in session:
+        return redirect("/")
+    return render_template("login.html")
+
+
+@app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.json
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
 
     user = get_user(username)
-    if user and verify_password(password, user['password_hash']):
-        session['user'] = {
-            'username': user['username'],
-            'role': user['role'],
-            'display_name': user['display_name']
+    if user and verify_password(password, user["password_hash"]):
+        session["user"] = {
+            "username": user["username"],
+            "role": user["role"],
+            "display_name": user["display_name"],
         }
-        return jsonify({'status': 'success', 'user': session['user']})
-    return jsonify({'error': 'Invalid credentials'}), 401
+        return jsonify({"status": "success", "user": session["user"]})
+    return jsonify({"error": "Invalid credentials"}), 401
 
-@app.route('/api/logout', methods=['POST'])
+
+@app.route("/api/logout", methods=["POST"])
 def api_logout():
-    session.pop('user', None)
-    return jsonify({'status': 'success'})
+    session.pop("user", None)
+    return jsonify({"status": "success"})
 
-@app.route('/api/me')
+
+@app.route("/api/me")
 def api_me():
-    if 'user' in session:
-        return jsonify(session['user'])
-    return jsonify({'error': 'Not authenticated'}), 401
+    if "user" in session:
+        return jsonify(session["user"])
+    return jsonify({"error": "Not authenticated"}), 401
 
-@app.route('/api/users', methods=['POST'])
+
+@app.route("/api/users", methods=["POST"])
 @admin_required
 def api_create_user():
     data = request.json
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    role = data.get('role', 'viewer')
-    display_name = data.get('display_name', username)
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    role = data.get("role", "viewer")
+    display_name = data.get("display_name", username)
 
     if not username or not password:
-        return jsonify({'error': 'Username and password required'}), 400
+        return jsonify({"error": "Username and password required"}), 400
 
     if get_user(username):
-        return jsonify({'error': 'Username already exists'}), 400
+        return jsonify({"error": "Username already exists"}), 400
 
     users = load_users()
-    users.append({
-        'username': username,
-        'password_hash': hash_password(password),
-        'role': role,
-        'display_name': display_name
-    })
+    users.append(
+        {
+            "username": username,
+            "password_hash": hash_password(password),
+            "role": role,
+            "display_name": display_name,
+        }
+    )
     save_users(users)
-    return jsonify({'status': 'success'}), 201
+    return jsonify({"status": "success"}), 201
 
-@app.route('/api/users', methods=['GET'])
+
+@app.route("/api/users", methods=["GET"])
 @admin_required
 def api_list_users():
     users = load_users()
-    return jsonify([{
-        'username': u['username'],
-        'role': u['role'],
-        'display_name': u['display_name']
-    } for u in users])
+    return jsonify(
+        [
+            {
+                "username": u["username"],
+                "role": u["role"],
+                "display_name": u["display_name"],
+            }
+            for u in users
+        ]
+    )
 
-@app.route('/api/users/<username>', methods=['PUT'])
+
+@app.route("/api/users/<username>", methods=["PUT"])
 @admin_required
 def api_update_user(username):
     data = request.json
     users = load_users()
 
     for user in users:
-        if user['username'] == username:
-            if 'role' in data:
-                user['role'] = data['role']
-            if 'display_name' in data:
-                user['display_name'] = data['display_name']
-            if 'password' in data and data['password']:
-                user['password_hash'] = hash_password(data['password'])
+        if user["username"] == username:
+            if "role" in data:
+                user["role"] = data["role"]
+            if "display_name" in data:
+                user["display_name"] = data["display_name"]
+            if "password" in data and data["password"]:
+                user["password_hash"] = hash_password(data["password"])
             save_users(users)
-            return jsonify({'status': 'success'})
-    return jsonify({'error': 'User not found'}), 404
+            return jsonify({"status": "success"})
+    return jsonify({"error": "User not found"}), 404
 
-@app.route('/api/users/<username>', methods=['DELETE'])
+
+@app.route("/api/users/<username>", methods=["DELETE"])
 @admin_required
 def api_delete_user(username):
-    if username == 'admin':
-        return jsonify({'error': 'Cannot delete admin user'}), 400
+    if username == "admin":
+        return jsonify({"error": "Cannot delete admin user"}), 400
 
     users = load_users()
-    users = [u for u in users if u['username'] != username]
+    users = [u for u in users if u["username"] != username]
     save_users(users)
-    return jsonify({'status': 'success'})
+    return jsonify({"status": "success"})
 
-@app.route('/api/change-password', methods=['POST'])
+
+@app.route("/api/change-password", methods=["POST"])
 @login_required
 def api_change_password():
     data = request.json
-    current_password = data.get('current_password', '')
-    new_password = data.get('new_password', '')
+    current_password = data.get("current_password", "")
+    new_password = data.get("new_password", "")
 
     if not new_password:
-        return jsonify({'error': 'New password required'}), 400
+        return jsonify({"error": "New password required"}), 400
 
     users = load_users()
-    username = session['user']['username']
+    username = session["user"]["username"]
 
     for user in users:
-        if user['username'] == username:
-            if not verify_password(current_password, user['password_hash']):
-                return jsonify({'error': 'Current password incorrect'}), 401
-            user['password_hash'] = hash_password(new_password)
+        if user["username"] == username:
+            if not verify_password(current_password, user["password_hash"]):
+                return jsonify({"error": "Current password incorrect"}), 401
+            user["password_hash"] = hash_password(new_password)
             save_users(users)
-            return jsonify({'status': 'success'})
-    return jsonify({'error': 'User not found'}), 404
+            return jsonify({"status": "success"})
+    return jsonify({"error": "User not found"}), 404
 
-@app.route('/')
+
+@app.route("/")
 def index():
-    if 'user' not in session:
-        return redirect('/login')
-    return render_template('dashboard.html')
+    if "user" not in session:
+        return redirect("/login")
+    return render_template("dashboard.html")
 
-@app.route('/api/stats')
+
+@app.route("/api/stats")
 def api_stats():
     tickets = read_tickets_from_db()
     stats = calculate_stats(tickets)
     return jsonify(stats)
 
-@app.route('/api/options')
+
+@app.route("/api/options")
 def api_options():
     return jsonify(get_dropdown_options())
 
-@app.route('/api/tickets')
+
+@app.route("/api/tickets")
 def api_tickets():
     tickets = read_tickets_from_db()
     # Convert -1 sentinel to '-' for closed/resolved tickets
     for t in tickets:
-        if t['days_open'] == -1:
-            t['days_open'] = '-'
+        if t["days_open"] == -1:
+            t["days_open"] = "-"
     return jsonify(tickets)
 
-@app.route('/api/tickets', methods=['POST'])
+
+@app.route("/api/tickets", methods=["POST"])
 def create_ticket():
     try:
         data = request.json
         ticket_id = create_ticket_in_db(data)
         if ticket_id:
-            return jsonify({'status': 'success', 'ticket_id': ticket_id}), 201
-        return jsonify({'error': 'Failed to save'}), 500
+            return jsonify({"status": "success", "ticket_id": ticket_id}), 201
+        return jsonify({"error": "Failed to save"}), 500
     except Exception as e:
         print(f"[API] Error creating ticket: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/tickets/<ticket_id>', methods=['PUT'])
+
+@app.route("/api/tickets/<ticket_id>", methods=["PUT"])
 def update_ticket(ticket_id):
     try:
         data = request.json
         if update_ticket_in_db(ticket_id, data):
-            return jsonify({'status': 'success'})
-        return jsonify({'error': 'Ticket not found'}), 404
+            return jsonify({"status": "success"})
+        return jsonify({"error": "Ticket not found"}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/tickets/<ticket_id>', methods=['DELETE'])
+
+@app.route("/api/tickets/<ticket_id>", methods=["DELETE"])
 def delete_ticket(ticket_id):
     try:
         if delete_ticket_from_db(ticket_id):
-            return jsonify({'status': 'success'})
-        return jsonify({'error': 'Ticket not found'}), 404
+            return jsonify({"status": "success"})
+        return jsonify({"error": "Ticket not found"}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/refresh', methods=['POST'])
+
+@app.route("/api/refresh", methods=["POST"])
 def api_refresh():
-    return jsonify({'status': 'success', 'message': 'Data refreshed from database'})
+    return jsonify({"status": "success", "message": "Data refreshed from database"})
 
-@app.route('/api/export')
+
+@app.route("/api/export")
 def api_export():
     """Export tickets to Excel file."""
     try:
@@ -782,130 +899,153 @@ def api_export():
         filename = f"tickets_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         return send_file(
             output,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True,
-            download_name=filename
+            download_name=filename,
         )
     except Exception as e:
         print(f"[API] Error exporting: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # --- SOC SECURITY DASHBOARD ROUTES ---
-@app.route('/security')
+@app.route("/security")
 def security_dashboard():
-    if 'user' not in session:
-        return redirect('/login')
-    return render_template('security.html')
+    if "user" not in session:
+        return redirect("/login")
+    return render_template("security.html")
 
-@app.route('/api/security/inventory')
+
+@app.route("/api/security/inventory")
 @login_required
 def api_security_inventory():
     """Get all network devices for SOC dashboard - enhanced."""
     conn = get_db_connection()
     if not conn:
         return jsonify([])
-    
+
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute("""
             SELECT ip_address, hostname, mac_address, vendor, status, 
                    is_authorized, open_ports, risk_level, last_seen, first_seen, notes
             FROM network_devices
             ORDER BY last_seen DESC
-        ''')
+        """)
         devices = cur.fetchall()
         cur.close()
         conn.close()
-        
+
         result = []
         for d in devices:
-            last_seen = d['last_seen']
-            first_seen = d.get('first_seen', last_seen)
-            last_seen_str = last_seen.strftime('%Y-%m-%d %H:%M') if last_seen and hasattr(last_seen, 'strftime') else 'Unknown'
-            first_seen_str = first_seen.strftime('%Y-%m-%d %H:%M') if first_seen and hasattr(first_seen, 'strftime') else 'Unknown'
-            
+            last_seen = d["last_seen"]
+            first_seen = d.get("first_seen", last_seen)
+            last_seen_str = (
+                last_seen.strftime("%Y-%m-%d %H:%M")
+                if last_seen and hasattr(last_seen, "strftime")
+                else "Unknown"
+            )
+            first_seen_str = (
+                first_seen.strftime("%Y-%m-%d %H:%M")
+                if first_seen and hasattr(first_seen, "strftime")
+                else "Unknown"
+            )
+
             # Parse open ports
-            ports = d.get('open_ports', '') or ''
-            port_list = [p.strip() for p in ports.split(',') if p.strip()]
-            
-            result.append({
-                'ip_address': d['ip_address'],
-                'hostname': d['hostname'] or 'Unknown',
-                'mac_address': d['mac_address'] or '',
-                'vendor': d.get('vendor') or 'Unknown',
-                'status': d['status'] or 'unknown',
-                'is_authorized': d['is_authorized'],
-                'open_ports': port_list,
-                'risk_level': d.get('risk_level') or 'low',
-                'last_seen': last_seen_str,
-                'first_seen': first_seen_str,
-                'notes': d['notes'] or ''
-            })
-        
+            ports = d.get("open_ports", "") or ""
+            port_list = [p.strip() for p in ports.split(",") if p.strip()]
+
+            result.append(
+                {
+                    "ip_address": d["ip_address"],
+                    "hostname": d["hostname"] or "Unknown",
+                    "mac_address": d["mac_address"] or "",
+                    "vendor": d.get("vendor") or "Unknown",
+                    "status": d["status"] or "unknown",
+                    "is_authorized": d["is_authorized"],
+                    "open_ports": port_list,
+                    "risk_level": d.get("risk_level") or "low",
+                    "last_seen": last_seen_str,
+                    "first_seen": first_seen_str,
+                    "notes": d["notes"] or "",
+                }
+            )
+
         return jsonify(result)
     except Exception as e:
         print(f"[SOC] Error fetching inventory: {e}")
         import traceback
+
         traceback.print_exc()
         return jsonify([])
 
-@app.route('/api/security/authorize/<ip>', methods=['POST'])
+
+@app.route("/api/security/authorize/<ip>", methods=["POST"])
 @admin_required
 def api_authorize_device(ip):
     """Authorize a device by IP address."""
     conn = get_db_connection()
     if not conn:
-        return jsonify({'error': 'Database error'}), 500
-    
+        return jsonify({"error": "Database error"}), 500
+
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute(
+            """
             UPDATE network_devices 
             SET is_authorized = 1, notes = COALESCE(notes, '') || ' [Authorized by ' || %s || ' on ' || %s || ']'
             WHERE ip_address = %s
-        ''', (session['user']['username'], datetime.now().strftime('%Y-%m-%d %H:%M'), ip))
+        """,
+            (
+                session["user"]["username"],
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+                ip,
+            ),
+        )
         conn.commit()
         updated = cur.rowcount > 0
         cur.close()
         conn.close()
-        
+
         if updated:
             print(f"[SOC] Device {ip} authorized by {session['user']['username']}")
-            return jsonify({'status': 'success'})
-        return jsonify({'error': 'Device not found'}), 404
+            return jsonify({"status": "success"})
+        return jsonify({"error": "Device not found"}), 404
     except Exception as e:
         print(f"[SOC] Error authorizing device: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/security/add-device', methods=['POST'])
+
+@app.route("/api/security/add-device", methods=["POST"])
 @admin_required
 def api_add_device():
     """Manually add a device to the inventory - enhanced."""
     data = request.json
-    ip_address = data.get('ip_address', '').strip()
-    hostname = data.get('hostname', 'Unknown').strip()
-    mac_address = data.get('mac_address', '').strip()
-    vendor = data.get('vendor', 'Unknown').strip()
-    open_ports = data.get('open_ports', '').strip()
-    is_authorized = 1 if data.get('is_authorized', False) else 0
-    
+    ip_address = data.get("ip_address", "").strip()
+    hostname = data.get("hostname", "Unknown").strip()
+    mac_address = data.get("mac_address", "").strip()
+    vendor = data.get("vendor", "Unknown").strip()
+    open_ports = data.get("open_ports", "").strip()
+    is_authorized = 1 if data.get("is_authorized", False) else 0
+
     # Determine risk level based on ports
-    risk_level = 'low'
+    risk_level = "low"
     if open_ports:
-        risky_ports = ['22', '23', '3389', '445', '21']
-        if any(p.strip() in risky_ports for p in open_ports.split(',')):
-            risk_level = 'medium'
-    
+        risky_ports = ["22", "23", "3389", "445", "21"]
+        if any(p.strip() in risky_ports for p in open_ports.split(",")):
+            risk_level = "medium"
+
     if not ip_address:
-        return jsonify({'error': 'IP address required'}), 400
-    
+        return jsonify({"error": "IP address required"}), 400
+
     conn = get_db_connection()
     if not conn:
-        return jsonify({'error': 'Database error'}), 500
-    
+        return jsonify({"error": "Database error"}), 500
+
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute(
+            """
             INSERT INTO network_devices (ip_address, hostname, mac_address, vendor, open_ports, risk_level, status, is_authorized, first_seen, last_seen)
             VALUES (%s, %s, %s, %s, %s, %s, 'up', %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (ip_address) DO UPDATE SET
@@ -915,300 +1055,457 @@ def api_add_device():
                 open_ports = EXCLUDED.open_ports,
                 risk_level = EXCLUDED.risk_level,
                 last_seen = CURRENT_TIMESTAMP
-        ''', (ip_address, hostname, mac_address, vendor, open_ports, risk_level, is_authorized))
-        
+        """,
+            (
+                ip_address,
+                hostname,
+                mac_address,
+                vendor,
+                open_ports,
+                risk_level,
+                is_authorized,
+            ),
+        )
+
         # Log security event
-        cur.execute('''
+        cur.execute(
+            """
             INSERT INTO security_events (event_type, severity, ip_address, description)
             VALUES ('device_added', 'low', %s, %s)
-        ''', (ip_address, f'New device discovered: {hostname} ({ip_address})'))
-        
+        """,
+            (ip_address, f"New device discovered: {hostname} ({ip_address})"),
+        )
+
         conn.commit()
         cur.close()
         conn.close()
-        
+
         print(f"[SOC] Device {ip_address} added by {session['user']['username']}")
-        return jsonify({'status': 'success'}), 201
+        return jsonify({"status": "success"}), 201
     except Exception as e:
         print(f"[SOC] Error adding device: {e}")
         import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
 
-@app.route('/api/security/stats')
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/security/stats")
 @login_required
 def api_security_stats():
     """Get SOC dashboard stats - enhanced."""
     conn = get_db_connection()
     if not conn:
-        return jsonify({
-            'total': 0, 'unauthorized': 0, 'authorized': 0,
-            'security_risks': 0, 'warnings': 0, 'network_health': 100
-        })
-    
+        return jsonify(
+            {
+                "total": 0,
+                "unauthorized": 0,
+                "authorized": 0,
+                "security_risks": 0,
+                "warnings": 0,
+                "network_health": 100,
+            }
+        )
+
     try:
         cur = conn.cursor()
-        cur.execute('SELECT COUNT(*) as total FROM network_devices')
-        total = cur.fetchone()['total']
-        
-        cur.execute('SELECT COUNT(*) as count FROM network_devices WHERE is_authorized = 0')
-        unauthorized = cur.fetchone()['count']
-        
-        cur.execute("SELECT COUNT(*) as count FROM network_devices WHERE risk_level = 'critical' OR risk_level = 'high'")
-        security_risks = cur.fetchone()['count']
-        
-        cur.execute("SELECT COUNT(*) as count FROM network_devices WHERE risk_level = 'medium'")
-        warnings = cur.fetchone()['count']
-        
+        cur.execute("SELECT COUNT(*) as total FROM network_devices")
+        total = cur.fetchone()["total"]
+
+        cur.execute(
+            "SELECT COUNT(*) as count FROM network_devices WHERE is_authorized = 0"
+        )
+        unauthorized = cur.fetchone()["count"]
+
+        cur.execute(
+            "SELECT COUNT(*) as count FROM network_devices WHERE risk_level = 'critical' OR risk_level = 'high'"
+        )
+        security_risks = cur.fetchone()["count"]
+
+        cur.execute(
+            "SELECT COUNT(*) as count FROM network_devices WHERE risk_level = 'medium'"
+        )
+        warnings = cur.fetchone()["count"]
+
         cur.execute("SELECT COUNT(*) as count FROM network_devices WHERE status = 'up'")
-        online = cur.fetchone()['count']
-        
+        online = cur.fetchone()["count"]
+
         cur.close()
         conn.close()
-        
+
         network_health = int((online / total * 100)) if total > 0 else 100
-        
-        return jsonify({
-            'total': total,
-            'unauthorized': unauthorized,
-            'authorized': total - unauthorized,
-            'security_risks': security_risks,
-            'warnings': warnings,
-            'network_health': network_health,
-            'online': online,
-            'offline': total - online
-        })
+
+        return jsonify(
+            {
+                "total": total,
+                "unauthorized": unauthorized,
+                "authorized": total - unauthorized,
+                "security_risks": security_risks,
+                "warnings": warnings,
+                "network_health": network_health,
+                "online": online,
+                "offline": total - online,
+            }
+        )
     except Exception as e:
         print(f"[SOC] Error fetching stats: {e}")
-        return jsonify({
-            'total': 0, 'unauthorized': 0, 'authorized': 0,
-            'security_risks': 0, 'warnings': 0, 'network_health': 100
-        })
+        return jsonify(
+            {
+                "total": 0,
+                "unauthorized": 0,
+                "authorized": 0,
+                "security_risks": 0,
+                "warnings": 0,
+                "network_health": 100,
+            }
+        )
 
-@app.route('/api/security/events')
+
+@app.route("/api/security/events")
 @login_required
 def api_security_events():
     """Get recent security events."""
     conn = get_db_connection()
     if not conn:
         return jsonify([])
-    
+
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute("""
             SELECT id, event_type, severity, ip_address, description, created_at
             FROM security_events
             ORDER BY created_at DESC
             LIMIT 50
-        ''')
+        """)
         events = cur.fetchall()
         cur.close()
         conn.close()
-        
+
         result = []
         for e in events:
-            created_at = e['created_at']
-            time_str = created_at.strftime('%H:%M %p') if hasattr(created_at, 'strftime') else str(created_at)
-            
-            result.append({
-                'id': e['id'],
-                'event_type': e['event_type'],
-                'severity': e['severity'],
-                'ip_address': e['ip_address'] or '',
-                'description': e['description'] or '',
-                'time': time_str
-            })
-        
+            created_at = e["created_at"]
+            time_str = (
+                created_at.strftime("%H:%M %p")
+                if hasattr(created_at, "strftime")
+                else str(created_at)
+            )
+
+            result.append(
+                {
+                    "id": e["id"],
+                    "event_type": e["event_type"],
+                    "severity": e["severity"],
+                    "ip_address": e["ip_address"] or "",
+                    "description": e["description"] or "",
+                    "time": time_str,
+                }
+            )
+
         return jsonify(result)
     except Exception as e:
         print(f"[SOC] Error fetching events: {e}")
         return jsonify([])
 
-@app.route('/api/security/events', methods=['POST'])
+
+@app.route("/api/security/events", methods=["POST"])
 @login_required
 def api_log_security_event():
     """Log a new security event."""
     data = request.json
-    event_type = data.get('event_type', 'info')
-    severity = data.get('severity', 'low')
-    ip_address = data.get('ip_address', '')
-    description = data.get('description', '')
-    
+    event_type = data.get("event_type", "info")
+    severity = data.get("severity", "low")
+    ip_address = data.get("ip_address", "")
+    description = data.get("description", "")
+
     conn = get_db_connection()
     if not conn:
-        return jsonify({'error': 'Database error'}), 500
-    
+        return jsonify({"error": "Database error"}), 500
+
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute(
+            """
             INSERT INTO security_events (event_type, severity, ip_address, description)
             VALUES (%s, %s, %s, %s)
-        ''', (event_type, severity, ip_address, description))
+        """,
+            (event_type, severity, ip_address, description),
+        )
         conn.commit()
         cur.close()
         conn.close()
-        
-        return jsonify({'status': 'success'}), 201
+
+        return jsonify({"status": "success"}), 201
     except Exception as e:
         print(f"[SOC] Error logging event: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 # --- PASSWORD RECOVERY ROUTES ---
-@app.route('/forgot-password')
+@app.route("/forgot-password")
 def forgot_password_page():
-    return render_template('forgot_password.html')
+    return render_template("forgot_password.html")
 
-@app.route('/api/forgot-password', methods=['POST'])
+
+@app.route("/api/forgot-password", methods=["POST"])
 def api_forgot_password():
     """Request a password reset token."""
     data = request.json
-    username = data.get('username', '').strip()
-    
+    username = data.get("username", "").strip()
+
     if not username:
-        return jsonify({'error': 'Username required'}), 400
-    
+        return jsonify({"error": "Username required"}), 400
+
     user = get_user(username)
     if not user:
         # Don't reveal if user exists
-        return jsonify({'status': 'success', 'message': 'If the username exists, a reset link has been generated.'})
-    
+        return jsonify(
+            {
+                "status": "success",
+                "message": "If the username exists, a reset link has been generated.",
+            }
+        )
+
     # Generate reset token
     reset_token = str(uuid.uuid4())
     expires_at = datetime.now() + timedelta(hours=1)
-    
+
     conn = get_db_connection()
     if conn:
         try:
             cur = conn.cursor()
             # Invalidate old tokens for this user
-            cur.execute('UPDATE password_reset_tokens SET used = 1 WHERE username = %s', (username,))
+            cur.execute(
+                "UPDATE password_reset_tokens SET used = 1 WHERE username = %s",
+                (username,),
+            )
             # Create new token
-            cur.execute('''
+            cur.execute(
+                """
                 INSERT INTO password_reset_tokens (username, token, expires_at)
                 VALUES (%s, %s, %s)
-            ''', (username, reset_token, expires_at))
+            """,
+                (username, reset_token, expires_at),
+            )
             conn.commit()
             cur.close()
             conn.close()
         except Exception as e:
             print(f"[AUTH] Error creating reset token: {e}")
-    
+
     # In production, send email. For dev, log the reset link
     reset_url = f"/reset-password/{reset_token}"
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f" PASSWORD RESET LINK FOR: {username}")
     print(f" {reset_url}")
     print(f" Token expires: {expires_at}")
-    print(f"{'='*50}\n")
-    
-    return jsonify({
-        'status': 'success',
-        'message': 'If the username exists, a reset link has been generated.',
-        'dev_reset_url': reset_url  # Remove in production
-    })
+    print(f"{'=' * 50}\n")
 
-@app.route('/reset-password/<token>')
+    return jsonify(
+        {
+            "status": "success",
+            "message": "If the username exists, a reset link has been generated.",
+            "dev_reset_url": reset_url,  # Remove in production
+        }
+    )
+
+
+@app.route("/reset-password/<token>")
 def reset_password_page(token):
     """Render reset password page."""
     # Verify token is valid
     conn = get_db_connection()
     if not conn:
-        return render_template('reset_password.html', error='System error', token=token)
-    
+        return render_template("reset_password.html", error="System error", token=token)
+
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute(
+            """
             SELECT username, expires_at, used FROM password_reset_tokens
             WHERE token = %s
-        ''', (token,))
+        """,
+            (token,),
+        )
         row = cur.fetchone()
         cur.close()
         conn.close()
-        
+
         if not row:
-            return render_template('reset_password.html', error='Invalid or expired reset link', token=token)
-        if row['used']:
-            return render_template('reset_password.html', error='This reset link has already been used', token=token)
-        if row['expires_at'] < datetime.now():
-            return render_template('reset_password.html', error='This reset link has expired', token=token)
-        
-        return render_template('reset_password.html', token=token, username=row['username'])
+            return render_template(
+                "reset_password.html",
+                error="Invalid or expired reset link",
+                token=token,
+            )
+        if row["used"]:
+            return render_template(
+                "reset_password.html",
+                error="This reset link has already been used",
+                token=token,
+            )
+        if row["expires_at"] < datetime.now():
+            return render_template(
+                "reset_password.html", error="This reset link has expired", token=token
+            )
+
+        return render_template(
+            "reset_password.html", token=token, username=row["username"]
+        )
     except Exception as e:
         print(f"[AUTH] Error verifying token: {e}")
-        return render_template('reset_password.html', error='System error', token=token)
+        return render_template("reset_password.html", error="System error", token=token)
 
-@app.route('/api/reset-password', methods=['POST'])
+
+@app.route("/api/reset-password", methods=["POST"])
 def api_reset_password():
     """Reset password using token."""
     data = request.json
-    token = data.get('token', '')
-    new_password = data.get('new_password', '')
-    
+    token = data.get("token", "")
+    new_password = data.get("new_password", "")
+
     if not token or not new_password:
-        return jsonify({'error': 'Token and new password required'}), 400
-    
+        return jsonify({"error": "Token and new password required"}), 400
+
     conn = get_db_connection()
     if not conn:
-        return jsonify({'error': 'System error'}), 500
-    
+        return jsonify({"error": "System error"}), 500
+
     try:
         cur = conn.cursor()
-        cur.execute('''
+        cur.execute(
+            """
             SELECT username, expires_at, used FROM password_reset_tokens
             WHERE token = %s
-        ''', (token,))
+        """,
+            (token,),
+        )
         row = cur.fetchone()
-        
+
         if not row:
-            return jsonify({'error': 'Invalid reset token'}), 400
-        if row['used']:
-            return jsonify({'error': 'Token already used'}), 400
-        if row['expires_at'] < datetime.now():
-            return jsonify({'error': 'Token expired'}), 400
-        
-        username = row['username']
-        
+            return jsonify({"error": "Invalid reset token"}), 400
+        if row["used"]:
+            return jsonify({"error": "Token already used"}), 400
+        if row["expires_at"] < datetime.now():
+            return jsonify({"error": "Token expired"}), 400
+
+        username = row["username"]
+
         # Mark token as used
-        cur.execute('UPDATE password_reset_tokens SET used = 1 WHERE token = %s', (token,))
+        cur.execute(
+            "UPDATE password_reset_tokens SET used = 1 WHERE token = %s", (token,)
+        )
         conn.commit()
         cur.close()
         conn.close()
-        
+
         # Update user password
         users = load_users()
         for user in users:
-            if user['username'] == username:
-                user['password_hash'] = hash_password(new_password)
+            if user["username"] == username:
+                user["password_hash"] = hash_password(new_password)
                 save_users(users)
                 print(f"[AUTH] Password reset successful for: {username}")
-                return jsonify({'status': 'success'})
-        
-        return jsonify({'error': 'User not found'}), 404
+                return jsonify({"status": "success"})
+
+        return jsonify({"error": "User not found"}), 404
     except Exception as e:
         print(f"[AUTH] Error resetting password: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # --- DEMO DATA & NETWORK SCANNING ---
-import socket
-import random
-
 DEMO_DEVICES = [
-    {'ip': '192.168.1.1', 'hostname': 'gateway-router', 'mac': 'AA:BB:CC:DD:EE:01', 'vendor': 'Cisco', 'ports': '22,80,443', 'authorized': 1, 'risk': 'low'},
-    {'ip': '192.168.1.10', 'hostname': 'web-server-01', 'mac': 'AA:BB:CC:DD:EE:10', 'vendor': 'Dell', 'ports': '22,80,443,8080', 'authorized': 1, 'risk': 'low'},
-    {'ip': '192.168.1.20', 'hostname': 'db-server-prod', 'mac': 'AA:BB:CC:DD:EE:20', 'vendor': 'HP', 'ports': '22,3306,5432', 'authorized': 1, 'risk': 'medium'},
-    {'ip': '192.168.1.50', 'hostname': 'workstation-admin', 'mac': 'AA:BB:CC:DD:EE:50', 'vendor': 'Lenovo', 'ports': '22,3389', 'authorized': 1, 'risk': 'low'},
-    {'ip': '192.168.1.105', 'hostname': 'unknown-device', 'mac': 'FF:FF:FF:AA:BB:CC', 'vendor': 'Unknown', 'ports': '22,23,80', 'authorized': 0, 'risk': 'critical'},
-    {'ip': '192.168.1.200', 'hostname': 'nas-storage', 'mac': 'AA:BB:CC:DD:EE:C8', 'vendor': 'Synology', 'ports': '22,80,443,445', 'authorized': 1, 'risk': 'medium'},
-    {'ip': '192.168.1.201', 'hostname': 'printer-office', 'mac': 'AA:BB:CC:DD:EE:C9', 'vendor': 'HP', 'ports': '80,9100', 'authorized': 1, 'risk': 'low'},
+    {
+        "ip": "192.168.1.1",
+        "hostname": "gateway-router",
+        "mac": "AA:BB:CC:DD:EE:01",
+        "vendor": "Cisco",
+        "ports": "22,80,443",
+        "authorized": 1,
+        "risk": "low",
+    },
+    {
+        "ip": "192.168.1.10",
+        "hostname": "web-server-01",
+        "mac": "AA:BB:CC:DD:EE:10",
+        "vendor": "Dell",
+        "ports": "22,80,443,8080",
+        "authorized": 1,
+        "risk": "low",
+    },
+    {
+        "ip": "192.168.1.20",
+        "hostname": "db-server-prod",
+        "mac": "AA:BB:CC:DD:EE:20",
+        "vendor": "HP",
+        "ports": "22,3306,5432",
+        "authorized": 1,
+        "risk": "medium",
+    },
+    {
+        "ip": "192.168.1.50",
+        "hostname": "workstation-admin",
+        "mac": "AA:BB:CC:DD:EE:50",
+        "vendor": "Lenovo",
+        "ports": "22,3389",
+        "authorized": 1,
+        "risk": "low",
+    },
+    {
+        "ip": "192.168.1.105",
+        "hostname": "unknown-device",
+        "mac": "FF:FF:FF:AA:BB:CC",
+        "vendor": "Unknown",
+        "ports": "22,23,80",
+        "authorized": 0,
+        "risk": "critical",
+    },
+    {
+        "ip": "192.168.1.200",
+        "hostname": "nas-storage",
+        "mac": "AA:BB:CC:DD:EE:C8",
+        "vendor": "Synology",
+        "ports": "22,80,443,445",
+        "authorized": 1,
+        "risk": "medium",
+    },
+    {
+        "ip": "192.168.1.201",
+        "hostname": "printer-office",
+        "mac": "AA:BB:CC:DD:EE:C9",
+        "vendor": "HP",
+        "ports": "80,9100",
+        "authorized": 1,
+        "risk": "low",
+    },
 ]
 
 DEMO_EVENTS = [
-    {'type': 'port_scan', 'severity': 'critical', 'ip': '192.168.1.105', 'desc': 'Port scan detected from 192.168.1.105'},
-    {'type': 'failed_login', 'severity': 'high', 'ip': '192.168.1.201', 'desc': 'Failed login attempt (root)'},
-    {'type': 'new_device', 'severity': 'medium', 'ip': '192.168.1.201', 'desc': 'New device discovered'},
-    {'type': 'device_authorized', 'severity': 'low', 'ip': '192.168.1.50', 'desc': 'Device authorized by admin'},
+    {
+        "type": "port_scan",
+        "severity": "critical",
+        "ip": "192.168.1.105",
+        "desc": "Port scan detected from 192.168.1.105",
+    },
+    {
+        "type": "failed_login",
+        "severity": "high",
+        "ip": "192.168.1.201",
+        "desc": "Failed login attempt (root)",
+    },
+    {
+        "type": "new_device",
+        "severity": "medium",
+        "ip": "192.168.1.201",
+        "desc": "New device discovered",
+    },
+    {
+        "type": "device_authorized",
+        "severity": "low",
+        "ip": "192.168.1.50",
+        "desc": "Device authorized by admin",
+    },
 ]
+
 
 def populate_demo_data():
     """Populate database with demo data if empty."""
@@ -1216,45 +1513,60 @@ def populate_demo_data():
     if not conn:
         print("[DEMO] No database connection, skipping demo data")
         return
-    
+
     try:
         cur = conn.cursor()
-        
+
         # Check if devices table is empty
         cur.execute("SELECT COUNT(*) as count FROM network_devices")
-        device_count = cur.fetchone()['count']
-        
+        device_count = cur.fetchone()["count"]
+
         if device_count == 0:
             print("[DEMO] Populating demo network devices...")
             for d in DEMO_DEVICES:
-                cur.execute('''
+                cur.execute(
+                    """
                     INSERT INTO network_devices (ip_address, hostname, mac_address, vendor, open_ports, 
                                                  risk_level, status, is_authorized, first_seen, last_seen)
                     VALUES (%s, %s, %s, %s, %s, %s, 'up', %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                     ON CONFLICT (ip_address) DO NOTHING
-                ''', (d['ip'], d['hostname'], d['mac'], d['vendor'], d['ports'], d['risk'], d['authorized']))
+                """,
+                    (
+                        d["ip"],
+                        d["hostname"],
+                        d["mac"],
+                        d["vendor"],
+                        d["ports"],
+                        d["risk"],
+                        d["authorized"],
+                    ),
+                )
             print(f"[DEMO] Added {len(DEMO_DEVICES)} demo devices")
-        
+
         # Check if events table is empty
         cur.execute("SELECT COUNT(*) as count FROM security_events")
-        event_count = cur.fetchone()['count']
-        
+        event_count = cur.fetchone()["count"]
+
         if event_count == 0:
             print("[DEMO] Populating demo security events...")
             for e in DEMO_EVENTS:
-                cur.execute('''
+                cur.execute(
+                    """
                     INSERT INTO security_events (event_type, severity, ip_address, description)
                     VALUES (%s, %s, %s, %s)
-                ''', (e['type'], e['severity'], e['ip'], e['desc']))
+                """,
+                    (e["type"], e["severity"], e["ip"], e["desc"]),
+                )
             print(f"[DEMO] Added {len(DEMO_EVENTS)} demo events")
-        
+
         conn.commit()
         cur.close()
         conn.close()
     except Exception as e:
         print(f"[DEMO] Error populating demo data: {e}")
 
-@app.route('/api/security/scan', methods=['POST'])
+
+@app.route("/api/security/scan", methods=["POST"])
 @admin_required
 def api_network_scan():
     """Perform real network scan on local subnet."""
@@ -1264,18 +1576,18 @@ def api_network_scan():
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
-        
-        subnet = '.'.join(local_ip.split('.')[:-1])
+
+        subnet = ".".join(local_ip.split(".")[:-1])
         print(f"[SOC] Starting network scan on subnet {subnet}.0/24")
-        
+
         discovered = []
         common_ports = [22, 23, 80, 443, 445, 3389, 8080, 3306, 5432]
-        
+
         # Scan a limited range for demo (1-20)
         for i in range(1, 21):
             ip = f"{subnet}.{i}"
             open_ports = []
-            
+
             for port in common_ports:
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1284,39 +1596,40 @@ def api_network_scan():
                     if result == 0:
                         open_ports.append(str(port))
                     sock.close()
-                except:
+                except Exception:
                     pass
-            
+
             if open_ports:
                 # Try to get hostname
                 try:
                     hostname = socket.gethostbyaddr(ip)[0]
-                except:
+                except Exception:
                     hostname = f"host-{ip.split('.')[-1]}"
-                
+
                 # Determine risk level
-                risky_ports = ['22', '23', '3389', '445']
-                risk = 'low'
+                risky_ports = ["22", "23", "3389", "445"]
+                risk = "low"
                 if any(p in open_ports for p in risky_ports):
-                    risk = 'medium'
-                if '23' in open_ports:  # Telnet is high risk
-                    risk = 'high'
-                
+                    risk = "medium"
+                if "23" in open_ports:  # Telnet is high risk
+                    risk = "high"
+
                 device = {
-                    'ip_address': ip,
-                    'hostname': hostname[:50],
-                    'open_ports': ','.join(open_ports),
-                    'risk_level': risk,
-                    'status': 'up'
+                    "ip_address": ip,
+                    "hostname": hostname[:50],
+                    "open_ports": ",".join(open_ports),
+                    "risk_level": risk,
+                    "status": "up",
                 }
                 discovered.append(device)
-                
+
                 # Add to database
                 conn = get_db_connection()
                 if conn:
                     try:
                         cur = conn.cursor()
-                        cur.execute('''
+                        cur.execute(
+                            """
                             INSERT INTO network_devices (ip_address, hostname, open_ports, risk_level, status, is_authorized, first_seen, last_seen)
                             VALUES (%s, %s, %s, %s, 'up', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                             ON CONFLICT (ip_address) DO UPDATE SET
@@ -1325,39 +1638,51 @@ def api_network_scan():
                                 risk_level = EXCLUDED.risk_level,
                                 status = EXCLUDED.status,
                                 last_seen = CURRENT_TIMESTAMP
-                        ''', (ip, hostname[:50], ','.join(open_ports), risk))
-                        
+                        """,
+                            (ip, hostname[:50], ",".join(open_ports), risk),
+                        )
+
                         # Log scan event
-                        cur.execute('''
+                        cur.execute(
+                            """
                             INSERT INTO security_events (event_type, severity, ip_address, description)
                             VALUES ('network_scan', 'low', %s, %s)
-                        ''', (ip, f'Device discovered: {hostname} with ports {",".join(open_ports)}'))
-                        
+                        """,
+                            (
+                                ip,
+                                f"Device discovered: {hostname} with ports {','.join(open_ports)}",
+                            ),
+                        )
+
                         conn.commit()
                         cur.close()
                         conn.close()
                     except Exception as e:
                         print(f"[SOC] Error saving scanned device: {e}")
-        
+
         print(f"[SOC] Scan complete. Discovered {len(discovered)} devices")
-        return jsonify({
-            'status': 'success',
-            'discovered': len(discovered),
-            'subnet': f"{subnet}.0/24",
-            'devices': discovered
-        })
+        return jsonify(
+            {
+                "status": "success",
+                "discovered": len(discovered),
+                "subnet": f"{subnet}.0/24",
+                "devices": discovered,
+            }
+        )
     except Exception as e:
         print(f"[SOC] Scan error: {e}")
         import traceback
+
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # Startup diagnostics
 def print_diagnostics():
     """Print startup diagnostics."""
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print(" IT OPSCENTER - STARTUP DIAGNOSTICS")
-    print("="*50)
+    print("=" * 50)
 
     # Database check
     print("\n[DATABASE]")
@@ -1389,7 +1714,8 @@ def print_diagnostics():
     else:
         print("  WARNING: No users loaded! Login will fail.")
 
-    print("="*50 + "\n")
+    print("=" * 50 + "\n")
+
 
 # Run diagnostics on startup
 print_diagnostics()
@@ -1397,9 +1723,9 @@ print_diagnostics()
 # Populate demo data if database is empty
 populate_demo_data()
 
-if __name__ == '__main__':
-    print("\n" + "="*50)
+if __name__ == "__main__":
+    print("\n" + "=" * 50)
     print(" IT OPERATIONS CENTER - DASHBOARD")
     print(" Open browser to: http://127.0.0.1:5000")
-    print("="*50 + "\n")
+    print("=" * 50 + "\n")
     app.run(debug=True, port=5000)

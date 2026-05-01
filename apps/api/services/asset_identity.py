@@ -4,7 +4,6 @@ Prevents duplicate assets across scans by matching on MAC, hostname, IP,
 and composite confidence scoring.
 """
 
-import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session

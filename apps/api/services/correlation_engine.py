@@ -1,6 +1,5 @@
 import datetime
 import json
-from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -47,7 +46,7 @@ class CorrelationEngine:
             patterns.append(
                 {
                     "category": "unauthorized_production_asset",
-                    "title": f"Unauthorized asset on production network",
+                    "title": "Unauthorized asset on production network",
                     "severity": "critical",
                     "summary": f"Asset {asset.hostname or asset.ip_address} is unauthorized and operating on the production "
                     f"network segment '{asset.segment}'. This requires immediate investigation.",
