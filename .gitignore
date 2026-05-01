@@ -35,3 +35,9 @@ npm-debug.log*
 # Test
 coverage/
 oui.txt
+
+# GPT-Taste QA
+*.gpt-taste-review.json
+
+# Snapshots
+.snapshots/

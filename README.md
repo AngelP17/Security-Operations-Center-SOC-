@@ -269,6 +269,52 @@ npm run dev
 | `npm run test:api` | Run pytest API test suite |
 | `npm run lint:api` | Run ruff lint on all Python code |
 | `npm run typecheck:api` | Run mypy type checking on Python code |
+| `npm run qa:frontend` | Run GPT-Taste design QA on all frontend files |
+| `npm run qa:frontend:staged` | Run GPT-Taste QA on git staged files |
+| `npm run qa:frontend:changed` | Run GPT-Taste QA on files changed since last commit |
+
+## GPT-Taste Design QA
+
+ForgeSentinel enforces Awwwards-level design standards through an automated QA gate. All frontend changes are reviewed against:
+
+- **Hero line limits** — H1 must never exceed 2-3 lines
+- **Bento grid density** — Grids must use `grid-flow-dense` with no empty cells
+- **Section spacing** — Minimum `py-32` between major sections
+- **GSAP motion** — Every interactive element needs hover physics and scroll animations
+- **Meta-label ban** — No cheap labels like "SECTION 01" or "QUESTION 05"
+- **Button contrast** — Text must be perfectly legible
+- **Typography** — Must use approved fonts (Satoshi, Cabinet Grotesk, Outfit, Geist)
+
+### Configuration
+
+Edit `.claude/gpt-taste-config.json` to adjust rules and enforcement mode:
+
+```json
+{
+  "enforcement_mode": "soft",
+  "review_threshold": 75
+}
+```
+
+- `soft` mode — warnings only, does not block merges
+- `hard` mode — blocks PR merge if score is below threshold
+
+### CI/CD
+
+The workflow runs automatically on PRs to `main`. Add `ANTHROPIC_API_KEY` to your repository secrets for AI-powered review, or use the local static analysis fallback.
+
+### Local Usage
+
+```bash
+# Review all frontend files
+npm run qa:frontend
+
+# Review specific files
+node scripts/gpt-taste-local.js --files app/page.tsx
+
+# Review staged changes
+npm run qa:frontend:staged
+```
 
 ## Production Build
 

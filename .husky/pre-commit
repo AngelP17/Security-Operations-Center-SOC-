@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# GPT-Taste QA Pre-commit Hook
+# Runs design QA on staged frontend files before allowing commit
+
+STAGED_TSX=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|css)$')
+
+if [ -n "$STAGED_TSX" ]; then
+  echo "Running GPT-Taste QA gate on staged files..."
+  echo "$STAGED_TSX"
+  echo ""
+  
+  # Run local review on staged files
+  node scripts/gpt-taste-local.js --staged
+  
+  # Check exit code
+  if [ $? -ne 0 ]; then
+    echo ""
+    echo "GPT-Taste QA failed. Commit aborted."
+    echo "Run in soft mode to see warnings only: npm run qa:frontend:staged"
+    exit 1
+  fi
+  
+  echo "GPT-Taste QA passed."
+fi

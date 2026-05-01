@@ -1,0 +1,121 @@
+name: GPT-Taste QA Hard Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'styles/**'
+      - '*.css'
+
+jobs:
+  gpt-taste-review:
+    name: GPT-Taste Design QA
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Get changed files
+        id: changed-files
+        run: |
+          echo "CHANGED_FILES=$(git diff --name-only HEAD~1 | grep -E '\.(ts|tsx|css)$' | tr '\n' ' ')" >> $GITHUB_ENV
+          echo "changed_count=$(git diff --name-only HEAD~1 | grep -E '\.(ts|tsx|css)$' | wc -l)" >> $GITHUB_OUTPUT
+
+      - name: Run GPT-Taste QA Review
+        if: steps.changed-files.outputs.changed_count > 0
+        id: gpt-taste
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGED_FILES: ${{ env.CHANGED_FILES }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          node scripts/gpt-taste-api-review.js
+
+      - name: Post PR comment
+        if: steps.changed-files.outputs.changed_count > 0
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const reviewPath = process.env.REVIEW_OUTPUT || './gpt-taste-review.json';
+            
+            if (!fs.existsSync(reviewPath)) {
+              console.log('No review output found');
+              return;
+            }
+            
+            const review = JSON.parse(fs.readFileSync(reviewPath, 'utf8'));
+            const config = JSON.parse(fs.readFileSync('.claude/gpt-taste-config.json', 'utf8'));
+            
+            const status = review.pass ? 'PASSED' : 'FAILED';
+            const emoji = review.pass ? 'GREEN' : 'RED';
+            
+            let body = `## GPT-Taste Design QA Review\n\n`;
+            body += `**Status:** ${status}  \n`;
+            body += `**Overall Score:** ${review.overall_score}/100  \n`;
+            body += `**Mode:** ${config.enforcement_mode.toUpperCase()}  \n\n`;
+            
+            if (review.findings && review.findings.length > 0) {
+              const failures = review.findings.filter(f => f.status === 'fail');
+              const passes = review.findings.filter(f => f.status === 'pass');
+              
+              if (failures.length > 0) {
+                body += `### Issues Found (${failures.length})\n\n`;
+                failures.forEach(f => {
+                  body += `- **${f.rule}** in \`${f.file}\`${f.line ? ` (line ${f.line})` : ''}\n`;
+                  body += `  - ${f.message}\n\n`;
+                });
+              }
+              
+              if (passes.length > 0) {
+                body += `<details>\n<summary>Passed Rules (${passes.length})</summary>\n\n`;
+                passes.forEach(f => {
+                  body += `- ${f.rule} in \`${f.file}\`\n`;
+                });
+                body += `</details>\n\n`;
+              }
+            }
+            
+            body += `---\n*Reviewed with GPT-Taste v1.0* | [Configuration](.claude/gpt-taste-config.json)`;
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Fail on hard mode
+        if: steps.changed-files.outputs.changed_count > 0
+        run: |
+          const fs = require('fs');
+          const review = JSON.parse(fs.readFileSync('./gpt-taste-review.json', 'utf8'));
+          const config = JSON.parse(fs.readFileSync('.claude/gpt-taste-config.json', 'utf8'));
+          
+          if (config.enforcement_mode === 'hard' && !review.pass) {
+            console.error('GPT-Taste QA failed in hard mode');
+            process.exit(1);
+          }
+        shell: node
