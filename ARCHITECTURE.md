@@ -30,6 +30,8 @@ graph TD
     Shell --> Command[/command]
     Shell --> Assets[/assets]
     Shell --> Incidents[/incidents and /incidents/:id]
+    Shell --> Scans[/scans]
+    Shell --> ScanDetail[/scans/:scanRunId]
     Shell --> Topology[/topology]
     Shell --> Replay[/replay/:entityId]
     Shell --> Reports[/reports]
@@ -38,6 +40,8 @@ graph TD
     Data[lib/security-data.ts] --> Command
     Data --> Assets
     Data --> Incidents
+    Data --> Scans
+    Data --> ScanDetail
     Data --> Topology
     Data --> Replay
 
@@ -45,9 +49,11 @@ graph TD
     Assets --> Drawer
     Command --> Drawer
     Topology --> Drawer
+    Scans --> Drawer
 
     API[lib/api.ts] --> SafeDemo[Safe demo scan]
     API --> LabMode[Opt-in lab scan gate]
+    API --> ScanEvidence[Scan evidence APIs]
 ```
 
 ## Backend Service Architecture
@@ -62,6 +68,12 @@ graph LR
         Router --> RecSvc[Recommendation Engine]
         Router --> AetherSvc[Aether Integration]
         Router --> AuditSvc[Audit Service]
+        Router --> EventSvc[Event Service]
+
+        ScanSvc --> Worker[Scan Worker<br/>Background Thread]
+        Worker --> Scanner[Production Scanner<br/>TCP Connect]
+        ScanSvc --> Profiles[Scan Profiles<br/>5 Profiles]
+        ScanSvc --> AuthScope[Auth Scopes<br/>CIDR Validation]
 
         ScanSvc --> ORM[(SQLite<br/>SQLAlchemy)]
         AssetSvc --> ORM
@@ -70,10 +82,13 @@ graph LR
         RecSvc --> ORM
         AetherSvc --> ORM
         AuditSvc --> ORM
+        EventSvc --> ORM
     end
 
     UI[Next.js UI<br/>Axios / lib/api.ts] --> Router
-    Scanner[Nmap Scanner<br/>TCP Connect] --> ScanSvc
+    Scanner --> Discovery[Host Discovery<br/>ICMP/ARP/TCP Ping]
+    Scanner --> Fingerprint[Service Fingerprint<br/>Banner/SSL/DNS]
+    Scanner --> OUI[OUI Vendor Lookup<br/>DB Cache + Fallback]
 ```
 
 ## Data Model Flow
@@ -81,12 +96,17 @@ graph LR
 ```mermaid
 graph TD
     subgraph "Ingestion"
-        Scan[scan_observations] --> Asset[assets]
+        ScanRun[scan_runs] --> ScanObs[scan_observations]
+        ScanRun --> ScanHost[scan_host_results]
+        ScanRun --> ScanPort[scan_port_results]
+        ScanObs --> Asset[assets]
+        ScanHost --> Asset
     end
 
     subgraph "Event & Risk"
         Asset --> Event[security_events]
         Event --> Risk[risk_decisions]
+        ScanRun --> Exposure[exposure_findings]
     end
 
     subgraph "Correlation & Response"
@@ -99,9 +119,12 @@ graph TD
         Incident --> Aether[aether_links]
     end
 
-    style Scan fill:#f9f,stroke:#333
+    style ScanRun fill:#f9f,stroke:#333
+    style ScanHost fill:#f9f,stroke:#333
+    style ScanPort fill:#f9f,stroke:#333
     style Asset fill:#f9f,stroke:#333
     style Risk fill:#ff9,stroke:#333
+    style Exposure fill:#ff9,stroke:#333
     style Incident fill:#f99,stroke:#333
     style Aether fill:#9f9,stroke:#333
     style Audit fill:#bbf,stroke:#333

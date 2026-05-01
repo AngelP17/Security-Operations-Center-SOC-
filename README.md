@@ -19,11 +19,13 @@ graph TB
             CMD[Command Center<br/>/command]
             AST[Asset Intelligence<br/>/assets]
             INC[Incident Workbench<br/>/incidents/:id]
+            SCN[Scan Control Center<br/>/scans]
         end
 
         subgraph "Investigation"
             TOP[Topology Investigation<br/>/topology]
             RPL[Audit Replay<br/>/replay/:entityId]
+            SEV[Scan Evidence Theater<br/>/scans/:scanRunId]
         end
 
         subgraph "Output"
@@ -34,8 +36,10 @@ graph TB
         Shell --> CMD
         Shell --> AST
         Shell --> INC
+        Shell --> SCN
         Shell --> TOP
         Shell --> RPL
+        Shell --> SEV
         Shell --> RPT
         Shell --> SET
     end
@@ -44,8 +48,10 @@ graph TB
     CMD -.->|GET /api/command| API
     AST -.->|GET /api/assets| API
     INC -.->|GET /api/incidents| API
+    SCN -.->|GET /api/scans| API
     TOP -.->|GET /api/assets, /api/incidents| API
     RPL -.->|GET /api/replay| API
+    SEV -.->|GET /api/scans/:id| API
 ```
 
 ## Data Pipeline Architecture
@@ -77,8 +83,10 @@ graph TD
 ## Core Workflows
 
 - **Command Center**: `/command` is the real-time SOC workspace with command summary, KPI grid, prioritized risk queue, active incident panel, live event stream, exposure charts, topology preview, and scan status.
-- **Asset Intelligence**: `/assets` provides object-centric asset workflows with API-backed inventory, risk decisions, triggered rules, ports, evidence, and audit trails.
+- **Asset Intelligence**: `/assets` provides object-centric asset workflows with API-backed inventory, risk decisions, triggered rules, ports, evidence, and audit trails. Includes exposure finding badges per asset.
 - **Incident Workbench**: `/incidents/[incidentId]` shows correlated security incidents with evidence timelines, decision traces, analyst notes, ranked recommendations, and Aether ticket creation.
+- **Scan Control Center**: `/scans` is the scan operations floor — launch scans, monitor live progress, review scan history, inspect exposure findings, and select scan profiles. Toast notifications for scan lifecycle events.
+- **Scan Evidence Theater**: `/scans/[scanRunId]` provides full audit replay for any scan — lifecycle panel, host evidence table, port ledger, exposure findings list, and scan metadata.
 - **Topology**: `/topology` visualizes assets by segment using React Flow with risk rings, incident correlations, and clickable asset details.
 - **Audit Replay**: `/replay/[entityId]` provides asset and incident audit replay with expandable raw JSON for explainability.
 - **Reports and Settings**: `/reports` and `/settings` support evidence packages, response governance, safe demo scanning, and opt-in lab scanning controls.
@@ -206,6 +214,9 @@ Every field tracks its source: `mac_source`, `hostname_source`, `vendor_source`,
 | Motion | Framer Motion |
 | Icons | Lucide React |
 | API Client | Axios in `lib/api.ts` |
+| Notifications | Sonner toast notifications |
+| Code Quality | ruff (Python lint), pytest (API tests) |
+| Build | Next.js build + Vite build with vendor chunk splitting |
 
 ## Environment Configuration
 
@@ -237,7 +248,7 @@ npm install
 # Install backend dependencies
 python3 -m venv api-venv
 source api-venv/bin/activate
-pip install fastapi uvicorn sqlalchemy pydantic pydantic-settings httpx python-dotenv
+pip install -r apps/api/requirements.txt
 
 # Run both frontend and backend
 npm run dev
@@ -246,16 +257,34 @@ npm run dev
 - Frontend: http://localhost:3005
 - Backend API: http://localhost:8000/api
 
+### Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start both frontend and backend concurrently |
+| `npm run dev:web` | Start Next.js dev server on port 3005 |
+| `npm run dev:api` | Start FastAPI backend with auto-reload on port 8000 |
+| `npm run build` | Build Next.js for production |
+| `npm run vite:build` | Build Vite bundle with vendor chunk splitting |
+| `npm run test:api` | Run pytest API test suite |
+| `npm run lint:api` | Run ruff lint on all Python code |
+| `npm run typecheck:api` | Run mypy type checking on Python code |
+
 ## Production Build
 
 ```bash
-# Build frontend
+# Build Next.js frontend
 npm run build
+
+# Build Vite bundle (vendor chunks auto-split)
+npm run vite:build
 
 # Start backend
 source api-venv/bin/activate
 PYTHONPATH=. uvicorn apps.api.main:app --port 8000
 ```
+
+The Vite build splits vendor libraries into separate chunks (react, radix, motion, charts, data) for optimal caching and load performance.
 
 ## Tests
 
@@ -271,6 +300,15 @@ Tests cover:
 - Public CIDR rejected for lab scan
 - Command endpoint returns database-backed metrics
 - Aether ticket creation records pending link when integration is disabled
+- Aether ticket creation is idempotent (duplicate prevention)
+
+### Lint
+
+```bash
+npm run lint:api
+```
+
+Backend lint is enforced with ruff. All code passes with zero errors.
 
 ## Project Structure
 

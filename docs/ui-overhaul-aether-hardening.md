@@ -4,7 +4,64 @@ Date: 2026-04-27
 
 ## Summary
 
-This pass redesigned and tightened the active Next.js command UI and kept the legacy Vite dashboard usable. The main goals were to improve the topology experience, make Aether incident ticket creation reliable, and remove fake or placeholder controls that appeared clickable but had no real behavior.
+This pass redesigned and tightened the active Next.js command UI and kept the legacy Vite dashboard usable. The main goals were to improve the topology experience, make Aether incident ticket creation reliable, remove fake or placeholder controls, and ship a complete Scan Control Center with real TCP connect scanning evidence.
+
+## Scan Control Center
+
+```mermaid
+graph TD
+    subgraph "Scan Lifecycle"
+        REQ[POST /api/scans/demo or /lab] --> QUEUE[Queued]
+        QUEUE --> RUN[Running]
+        RUN --> COMP[Completed]
+        RUN --> FAIL[Failed]
+        RUN --> CAN[Cancelled]
+    end
+
+    subgraph "Evidence Pipeline"
+        COMP --> HOSTS[scan_host_results]
+        COMP --> PORTS[scan_port_results]
+        COMP --> FIND[exposure_findings]
+        HOSTS --> ASSET[Asset Identity Reconciliation]
+        PORTS --> ASSET
+        FIND --> UI[Exposure Badges]
+    end
+
+    subgraph "Frontend Surfaces"
+        SCN[/scans<br/>Scan Control Center]
+        SEV[/scans/:id<br/>Scan Evidence Theater]
+        AST[/assets<br/>Asset Detail Drawer]
+    end
+
+    UI --> SCN
+    UI --> SEV
+    UI --> AST
+
+    style REQ fill:#f9f,stroke:#333
+    style COMP fill:#9f9,stroke:#333
+    style SCN fill:#bbf,stroke:#333
+    style SEV fill:#bbf,stroke:#333
+```
+
+- `/scans` — Scan Control Center with live progress, history ledger, profile selector, and exposure findings
+- `/scans/[scanRunId]` — Scan Evidence Theater with lifecycle panel, host evidence table, port ledger, and exposure findings
+- Toast notifications (Sonner) for scan lifecycle events (queued, running, completed, failed, cancelled)
+- Scan status polling via `useScanStatus` hook (2.5s intervals)
+- Exposure badges (`ExposureBadge`, `ExposureBadgeStack`) rendered in Asset Detail Drawer
+- Demo scans seed assets but do not populate host/port evidence (known limitation)
+- Lab scans perform real TCP connect scanning with full evidence population
+
+## Real TCP Connect Scanning
+
+The `ProductionScanner` class performs actual network scanning:
+- **Host discovery**: ICMP ping sweep, ARP probe, TCP ping against common ports
+- **Port scanning**: Real `socket.connect_ex()` against configurable port lists
+- **Service fingerprinting**: Safe banner grabbing for HTTP/HTTPS, SSH, FTP, SMTP
+- **Hostname resolution**: Reverse DNS + NetBIOS fallback
+- **MAC discovery**: ARP table parsing with active ARP probes
+- **Vendor attribution**: MAC OUI lookup with offline cache + 200+ vendor static fallback
+- **Rate limiting**: Per-profile concurrent host/port limits, delay between hosts
+- **Background execution**: Scans run asynchronously with lifecycle control
 
 ## Aether Integration
 
@@ -88,6 +145,7 @@ The following checks passed:
 npm run build
 npm run vite:build
 npm run test:api
+npm run lint:api
 ```
 
 API test result:
@@ -96,9 +154,26 @@ API test result:
 7 passed
 ```
 
+Lint result:
+
+```text
+All checks passed!
+```
+
+Vite build result:
+
+```text
+build/assets/vendor-radix-BKpyJZn8.js    83.47 kB
+build/assets/vendor-react-7PqXWhc5.js   141.85 kB
+build/assets/vendor-charts-C4PUiUni.js  392.90 kB
+build/assets/index-8ZkTux9d.js          582.53 kB
+```
+
 ## Notes
 
 - The Next.js app remains the primary production surface.
 - The Vite dashboard remains supported enough to avoid dead controls and placeholder behavior.
 - Report generation, notifications, and asset-level feedback workflows are intentionally marked unavailable until real backend workflows are added.
 - `.next/` was already untracked before this pass and remains an untracked generated build directory.
+- `ruff` is now installed in `api-venv` and tracked in `apps/api/requirements.txt`.
+- Vite build uses vendor chunk splitting (react, radix, motion, charts, data) for optimal caching.
