@@ -5,7 +5,6 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
-  AlertTriangle,
   ArrowRight,
   Boxes,
   Gauge,
@@ -27,34 +26,73 @@ const routeSlices = [
   {
     href: "/command",
     icon: Gauge,
-    title: "Command center",
-    note: "Lead the queue from incident pressure, not from decorative metrics.",
-    body: "The response lane keeps scan posture, queue priority, and the next operational move in the same authored frame.",
-    accent: "command",
+    title: "Command",
+    note: "Incident pressure, scan posture, queue priority, and response moves stay in one authored lane.",
+    image: "https://picsum.photos/seed/industrial-command-room/1200/900",
+    tone: "command",
   },
   {
     href: "/assets",
     icon: Boxes,
-    title: "Asset archive",
-    note: "Object identity stays attached to risk, ownership, and exposed services.",
-    body: "The archive view treats every device like a specimen record instead of flattening the investigation into table fatigue.",
-    accent: "assets",
+    title: "Assets",
+    note: "Every device keeps identity, ownership, authorization state, service evidence, and risk rationale attached.",
+    image: "https://picsum.photos/seed/manufacturing-asset-ledger/1200/900",
+    tone: "assets",
   },
   {
     href: "/incidents",
     icon: TicketCheck,
-    title: "Incident board",
-    note: "Escalation, confidence, and Aether handoff read like one response story.",
-    body: "The incident surface preserves narrative continuity so the responder does not need to reconstruct context from scattered cards.",
-    accent: "incidents",
+    title: "Incidents",
+    note: "Escalation reads as a response story with confidence, evidence, recommendations, and Aether handoff.",
+    image: "https://picsum.photos/seed/security-incident-board/1200/900",
+    tone: "incidents",
   },
   {
     href: "/topology",
     icon: Network,
-    title: "Topology observatory",
-    note: "Path context stays readable while the graph remains interactive.",
-    body: "The observatory view lets segment relationships, active incident threads, and asset drill-in coexist without utility-tool sprawl.",
-    accent: "topology",
+    title: "Topology",
+    note: "Segment relationships remain inspectable while the analyst drills from graph context into real objects.",
+    image: "https://picsum.photos/seed/industrial-network-topology/1200/900",
+    tone: "topology",
+  },
+];
+
+const capabilityCards = [
+  {
+    className: "landing-bento-wide",
+    title: "Risk decisions carry their evidence.",
+    body: "Ports, authorization state, asset criticality, triggered rules, and incident correlations remain readable instead of being flattened into a decorative score.",
+    image: "https://picsum.photos/seed/risk-evidence-console/1400/900",
+  },
+  {
+    className: "landing-bento-small",
+    title: "Real scan posture",
+    body: "Safe demo runs and authorized lab scans are separated by governance.",
+    image: "https://picsum.photos/seed/tcp-scan-lab/900/900",
+  },
+  {
+    className: "landing-bento-small",
+    title: "Aether-ready handoff",
+    body: "Local response records can become operational tickets without losing audit context.",
+    image: "https://picsum.photos/seed/operations-handoff/900/900",
+  },
+  {
+    className: "landing-bento-third",
+    title: "Audit replay",
+    body: "Every recommendation can be traced back to the observations that made it credible.",
+    image: "https://picsum.photos/seed/audit-replay-ledger/900/900",
+  },
+  {
+    className: "landing-bento-third",
+    title: "OT aware",
+    body: "Industrial protocols and conservative profiles are treated as first-class operating constraints.",
+    image: "https://picsum.photos/seed/industrial-control-system/900/900",
+  },
+  {
+    className: "landing-bento-third",
+    title: "Segment clarity",
+    body: "Topology, incidents, and object records share one mental model.",
+    image: "https://picsum.photos/seed/network-segment-map/900/900",
   },
 ];
 
@@ -64,9 +102,13 @@ function getLeadIncident(incidents: Incident[]) {
     .sort((a, b) => b.risk_score - a.risk_score)[0];
 }
 
+function getHighRiskAssets(assets: Asset[]) {
+  return assets.filter((asset) => ["critical", "high"].includes(asset.risk_level || ""));
+}
+
 export default function LandingPage() {
   const pageRef = useRef<HTMLElement>(null);
-  const [activeSlice, setActiveSlice] = useState(routeSlices[0].href);
+  const [activeSlice, setActiveSlice] = useState(routeSlices[0]);
   const { data: command } = useCommandCenter();
   const { data: assetsData } = useAssets();
   const { data: incidentsData } = useIncidents();
@@ -76,415 +118,278 @@ export default function LandingPage() {
   const incidents: Incident[] = incidentsData?.items || [];
   const profiles = profilesData?.profiles || [];
   const leadIncident = useMemo(() => getLeadIncident(incidents), [incidents]);
-  const activeRoute = useMemo(
-    () => routeSlices.find((slice) => slice.href === activeSlice) || routeSlices[0],
-    [activeSlice],
+  const highRiskAssets = useMemo(() => getHighRiskAssets(assets), [assets]);
+
+  const proofFrames = useMemo(
+    () => [
+      {
+        title: leadIncident?.title || "Response posture stays ready before the first incident leads.",
+        body: leadIncident
+          ? `${leadIncident.incident_uid} carries ${leadIncident.affected_assets.length} affected assets, ${leadIncident.confidence_score}% confidence, and a ${leadIncident.severity} severity path.`
+          : "When incidents arrive, the workspace preserves why it matters, what is affected, and what action follows.",
+      },
+      {
+        title: `${command?.kpis?.total_assets ?? assets.length} assets can resolve into object evidence.`,
+        body: assets.length
+          ? `${highRiskAssets.length} objects are already high or critical, with services and authorization state visible to the analyst.`
+          : "Discovery records are ready to carry owner, segment, service, and risk decisions together.",
+      },
+      {
+        title: `${profiles.length || "Governed"} scan profiles keep discovery intentional.`,
+        body: profiles.length
+          ? "Profile choice can reflect safe discovery, OT visibility, conservative OT, Windows exposure, or deeper private review."
+          : "The interface leaves room for profile governance even when the backend has not returned the catalog yet.",
+      },
+    ],
+    [assets.length, command?.kpis?.total_assets, highRiskAssets.length, leadIncident, profiles.length],
   );
 
-  const telemetry = useMemo(() => [
-    {
-      label: "Visible assets",
-      value: `${command?.kpis?.total_assets ?? assets.length}`,
-      detail: `${new Set(assets.map((asset) => asset.segment)).size} active segments`,
+  useGSAP(
+    () => {
+      const ctx = gsap.context(() => {
+        gsap.from(".taste-hero-enter > *", {
+          y: 34,
+          opacity: 0,
+          duration: 0.9,
+          stagger: 0.09,
+          ease: "power3.out",
+        });
+
+        gsap.from(".landing-bento-card", {
+          y: 70,
+          scale: 0.96,
+          opacity: 0,
+          duration: 0.9,
+          stagger: 0.08,
+          ease: "power3.out",
+          scrollTrigger: {
+            trigger: ".landing-bento-grid",
+            start: "top 78%",
+          },
+        });
+
+        gsap.utils.toArray<HTMLElement>(".scrub-word").forEach((word, index) => {
+          gsap.to(word, {
+            opacity: 1,
+            y: 0,
+            ease: "none",
+            scrollTrigger: {
+              trigger: ".landing-scrub-copy",
+              start: `top+=${index * 8} 74%`,
+              end: `top+=${index * 8 + 120} 42%`,
+              scrub: true,
+            },
+          });
+        });
+
+        gsap.utils.toArray<HTMLElement>(".landing-stack-card").forEach((card, index) => {
+          gsap.fromTo(
+            card,
+            { y: 120, scale: 0.92, opacity: 0.15 },
+            {
+              y: index * -18,
+              scale: 1 - index * 0.018,
+              opacity: 1,
+              ease: "none",
+              scrollTrigger: {
+                trigger: card,
+                start: "top 86%",
+                end: "top 36%",
+                scrub: true,
+              },
+            },
+          );
+        });
+
+        ScrollTrigger.create({
+          trigger: ".landing-desire",
+          start: "top top",
+          end: "bottom bottom",
+          pin: ".landing-desire-copy",
+          pinSpacing: false,
+        });
+      }, pageRef);
+
+      return () => ctx.revert();
     },
-    {
-      label: "Open incidents",
-      value: `${command?.kpis?.open_incidents ?? incidents.length}`,
-      detail: leadIncident ? `${leadIncident.incident_uid} in focus` : "No incident leading",
-    },
-    {
-      label: "Unauthorized",
-      value: `${command?.kpis?.unauthorized_count ?? assets.filter((asset) => asset.authorization_state === "unauthorized").length}`,
-      detail: "Objects outside approved state",
-    },
-    {
-      label: "Scan profiles",
-      value: `${profiles.length}`,
-      detail: profiles.length ? "Authorized scan temperaments loaded" : "Profile catalog unavailable",
-    },
-  ], [assets, command, incidents.length, leadIncident, profiles.length]);
+    { scope: pageRef },
+  );
 
-  const segmentNarratives = useMemo(() => {
-    const counts = new Map<string, { total: number; highRisk: number }>();
-    for (const asset of assets) {
-      const key = asset.segment || "Unknown";
-      const current = counts.get(key) || { total: 0, highRisk: 0 };
-      current.total += 1;
-      if (["critical", "high"].includes(asset.risk_level || "")) current.highRisk += 1;
-      counts.set(key, current);
-    }
-    return Array.from(counts.entries())
-      .map(([segment, value]) => ({
-        segment,
-        total: value.total,
-        highRisk: value.highRisk,
-      }))
-      .sort((a, b) => b.highRisk - a.highRisk || b.total - a.total)
-      .slice(0, 4);
-  }, [assets]);
-
-  const proofFrames = useMemo(() => [
-    {
-      eyebrow: "Command narrative",
-      title: leadIncident?.title || "Response language stays ready even before the first incident leads.",
-      detail: leadIncident
-        ? `${leadIncident.incident_uid} carries ${leadIncident.affected_assets.length} affected assets with ${leadIncident.confidence_score}% confidence and a ${leadIncident.severity} severity label.`
-        : "Once incidents arrive, the system should preserve the why, the scope, and the next move in one lane.",
-      accent: "incident",
-    },
-    {
-      eyebrow: "Plant object model",
-      title: assets.length
-        ? `${assets.filter((asset) => asset.authorization_state === "unauthorized").length} assets are already outside authorization policy.`
-        : "The object archive is ready for the first credible device record.",
-      detail: assets.length
-        ? `${assets.filter((asset) => (asset.open_ports || []).length > 0).length} discovered objects already carry live port evidence and authorization state alongside identity.`
-        : "When discovery runs, the archive should preserve identity, ownership, services, and consequence together.",
-      accent: "assets",
-    },
-    {
-      eyebrow: "Observability depth",
-      title: segmentNarratives[0]
-        ? `${segmentNarratives[0].segment} is the sharpest segment in the current graph.`
-        : "Topology becomes useful when the graph preserves investigation context.",
-      detail: segmentNarratives[0]
-        ? `${segmentNarratives[0].highRisk} high-risk assets are visible there across ${segmentNarratives[0].total} currently mapped objects.`
-        : "The observatory keeps segment pressure, graph relations, and asset drill-in aligned in the same chamber.",
-      accent: "topology",
-    },
-  ], [assets, leadIncident, segmentNarratives]);
-
-  useGSAP(() => {
-    const ctx = gsap.context(() => {
-      // Hero entrance with enhanced stagger
-      gsap.from(".landing-hero-copy > *", {
-        y: 42,
-        opacity: 0,
-        duration: 1,
-        stagger: 0.12,
-        ease: "power3.out",
-      });
-
-      gsap.from(".landing-stage, .landing-terminal-note", {
-        x: 50,
-        opacity: 0,
-        duration: 1.05,
-        stagger: 0.14,
-        ease: "power3.out",
-        delay: 0.2,
-      });
-
-      // Route cards scroll reveal with scale physics
-      gsap.from(".landing-route-panel", {
-        y: 80,
-        opacity: 0,
-        scale: 0.96,
-        duration: 0.85,
-        stagger: 0.1,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: ".landing-route-rails",
-          start: "top 78%",
-        },
-      });
-
-      // Proof cards with enhanced stagger
-      gsap.from(".landing-proof-card", {
-        y: 70,
-        opacity: 0,
-        duration: 0.85,
-        stagger: 0.14,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: ".landing-proof-rail",
-          start: "top 76%",
-        },
-      });
-
-      // Pin the proof copy while rail scrolls
-      ScrollTrigger.create({
-        trigger: ".landing-proof-copy",
-        start: "top 140px",
-        endTrigger: ".landing-proof-rail",
-        end: "bottom bottom",
-        pin: true,
-      });
-
-      // Action section fade up
-      gsap.from(".landing-action-copy > *", {
-        y: 40,
-        opacity: 0,
-        duration: 0.9,
-        stagger: 0.1,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: ".landing-action-v2",
-          start: "top 80%",
-        },
-      });
-
-      gsap.from(".landing-directory-row", {
-        x: 30,
-        opacity: 0,
-        duration: 0.7,
-        stagger: 0.08,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: ".landing-action-directory",
-          start: "top 85%",
-        },
-      });
-
-      // Footer reveal
-      gsap.from(".landing-footer-grid > *", {
-        y: 30,
-        opacity: 0,
-        duration: 0.7,
-        stagger: 0.08,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: ".landing-footer",
-          start: "top 90%",
-        },
-      });
-    }, pageRef);
-
-    return () => ctx.revert();
-  }, { scope: pageRef });
+  const scrubText =
+    "ForgeSentinel feels premium because it refuses to separate beauty from consequence: asset identity, incident pressure, scan governance, and response handoff all remain visible while the operator moves.";
 
   return (
-    <main ref={pageRef} className="landing-page-v2">
-      <nav className="landing-nav" aria-label="Primary">
-        <Link href="/" className="home-brand" aria-label="ForgeSentinel home">
-          <span className="home-brand-mark">
-            <ShieldCheck size={20} />
+    <main ref={pageRef} className="landing-page-v3 overflow-x-hidden w-full max-w-full">
+      <nav className="taste-nav" aria-label="Primary">
+        <Link href="/" className="taste-brand" aria-label="ForgeSentinel home">
+          <span className="taste-brand-mark">
+            <ShieldCheck size={19} />
           </span>
           <span>
             <strong>ForgeSentinel</strong>
             <small>Industrial operational intelligence</small>
           </span>
         </Link>
-        <div className="landing-nav-links">
-          <Link href="/command">Command</Link>
-          <Link href="/assets">Assets</Link>
-          <Link href="/incidents">Incidents</Link>
-          <Link href="/topology">Topology</Link>
+        <div className="taste-nav-links">
+          {routeSlices.map((slice) => (
+            <Link key={slice.href} href={slice.href}>
+              {slice.title}
+            </Link>
+          ))}
         </div>
-        <Link href="/command" className="taste-btn taste-btn-primary landing-nav-cta">
+        <Link href="/command" className="taste-button taste-button-light">
           Open workspace
           <ArrowRight size={16} />
         </Link>
       </nav>
 
-      <section className="landing-hero-v2" aria-labelledby="landing-title">
-        <div className="landing-hero-copy">
-          <div className="hero-kicker">Premium operational intelligence for manufacturing infrastructure</div>
-          <h1 id="landing-title" className="landing-hero-title">
-            A command surface for the engineer who needs
-            {" "}
-            <span className="inline-photo inline-photo-signal" aria-hidden="true" />
-            {" "}
-            credible system behavior, not dashboard theater.
-          </h1>
-          <p className="landing-hero-body">
-            ForgeSentinel is shaped for industrial cybersecurity, platform reliability, and infrastructure investigation.
-            It connects discovery, asset evidence, incident escalation, topology context, and response handoff into one
-            operationally believable interface.
+      <section className="taste-hero taste-hero-enter" aria-labelledby="landing-title">
+        <div className="taste-hero-bg" aria-hidden="true" />
+        <p className="taste-kicker">Manufacturing SOC and asset risk intelligence</p>
+        <h1 id="landing-title" className="taste-hero-title">
+          Credible command for industrial security.
+        </h1>
+        <p className="taste-hero-copy">
+          ForgeSentinel connects discovery, asset evidence, incident escalation, topology context, and response handoff
+          into one operationally believable workspace.
+        </p>
+        <div className="taste-hero-actions">
+          <Link href="/command" className="taste-button taste-button-light">
+            Enter command
+            <ArrowRight size={17} />
+          </Link>
+          <Link href="/topology" className="taste-button taste-button-dark">
+            Inspect topology
+            <GitBranch size={17} />
+          </Link>
+        </div>
+        <div className="taste-live-panel">
+          <span>
+            <Radar size={14} />
+            {command?.data_freshness || "Telemetry waiting for backend signal"}
+          </span>
+          <strong>{leadIncident ? leadIncident.incident_uid : "No active lead"}</strong>
+        </div>
+      </section>
+
+      <section className="landing-bento-section">
+        <div className="landing-section-header">
+          <p className="taste-kicker">Evidence architecture</p>
+          <h2>
+            The product makes risk
+            <span
+              className="inline-photo inline-photo-forge"
+              aria-hidden="true"
+            />
+            inspectable.
+          </h2>
+          <p>
+            This pass treats the homepage as a working product entry, not a marketing wrapper. The capabilities below
+            match the operational modules already implemented in the app.
           </p>
-          <div className="hero-actions">
-            <Link href="/command" className="taste-btn taste-btn-primary">
-              Enter command center
-              <ArrowRight size={17} />
-            </Link>
-            <Link href="/topology" className="taste-btn">
-              Inspect topology
-              <GitBranch size={17} />
-            </Link>
-          </div>
         </div>
 
-        <div className="landing-hero-stage">
-          <section className="landing-stage" aria-label="System overview">
-            <div className="landing-stage-head">
-              <div>
-                <span className="landing-stage-kicker">Live workspace posture</span>
-                <strong>{command?.data_freshness || "Telemetry waiting for first backend signal"}</strong>
+        <div className="landing-bento-grid">
+          {capabilityCards.map((card) => (
+            <article key={card.title} className={`landing-bento-card group ${card.className}`}>
+              <div className="landing-bento-image">
+                <img src={card.image} alt="" />
               </div>
-              <span className="chip">
-                <Radar size={12} />
-                {leadIncident ? leadIncident.incident_uid : "No active lead"}
-              </span>
-            </div>
-
-            <div className="landing-stage-routes">
-              {routeSlices.map((slice) => {
-                const Icon = slice.icon;
-                const isActive = slice.href === activeRoute.href;
-                return (
-                  <button
-                    key={slice.href}
-                    type="button"
-                    className={`landing-stage-route ${isActive ? "active" : ""}`}
-                    onMouseEnter={() => setActiveSlice(slice.href)}
-                    onFocus={() => setActiveSlice(slice.href)}
-                    onClick={() => setActiveSlice(slice.href)}
-                  >
-                    <span className={`landing-stage-swatch tone-${slice.accent}`} aria-hidden="true" />
-                    <div>
-                      <span className="landing-stage-route-label">
-                        <Icon size={14} />
-                        {slice.title}
-                      </span>
-                      <strong>{slice.note}</strong>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="landing-stage-telemetry">
-              {telemetry.map((item) => (
-                <article key={item.label} className="landing-stage-stat">
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                  <small>{item.detail}</small>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <div className="landing-terminal-note">
-            <span>{activeRoute.title}</span>
-            <strong>{activeRoute.body}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-marquee" aria-label="ForgeSentinel capabilities">
-        <div>command narrative / asset evidence / incident escalation / topology observatory / aether handoff / operational credibility</div>
-        <div aria-hidden="true">command narrative / asset evidence / incident escalation / topology observatory / aether handoff / operational credibility</div>
-      </section>
-
-      <section className="landing-routes-v2">
-        <div className="section-copy landing-section-copy">
-          <div className="eyebrow">Visual direction</div>
-          <h2>Each route behaves like a different chamber of the same command machine.</h2>
-          <p>
-            The system should not repeat one safe dashboard pattern. Command, assets, incidents, and topology each need their
-            own visual rhythm while still reading as one product family.
-          </p>
-        </div>
-
-        <div className="landing-route-rails" role="tablist" aria-label="ForgeSentinel route previews">
-          {routeSlices.map((slice, index) => {
-            const Icon = slice.icon;
-            const isActive = slice.href === activeRoute.href;
-            return (
-              <Link
-                key={slice.href}
-                href={slice.href}
-                className={`landing-route-panel ${isActive ? "active" : ""}`}
-                onMouseEnter={() => setActiveSlice(slice.href)}
-                onFocus={() => setActiveSlice(slice.href)}
-              >
-                <div className={`landing-route-panel-media tone-${slice.accent}`} aria-hidden="true" />
-                <div className="landing-route-panel-copy">
-                  <span className="landing-route-panel-index">{`0${index + 1}`}</span>
-                  <div className="landing-route-panel-title">
-                    <Icon size={18} />
-                    <strong>{slice.title}</strong>
-                  </div>
-                  <p>{slice.body}</p>
-                  <small>{slice.note}</small>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="landing-proof-v2">
-        <div className="landing-proof-copy">
-          <div className="eyebrow">Operational proof</div>
-          <h2>A premium interface earns trust by preserving consequence, not by hiding it behind polish.</h2>
-          <p>
-            The frontend should feel authored, but the credibility comes from how clearly it carries real system state:
-            unauthorized objects, active incidents, mapped segments, and the next durable response move.
-          </p>
-          <div className="landing-proof-flags">
-            <span className="chip">
-              <AlertTriangle size={12} />
-              {command?.kpis?.critical_count || 0} critical decisions
-            </span>
-            <span className="chip">
-              <Boxes size={12} />
-              {assets.length} archived objects
-            </span>
-          </div>
-        </div>
-
-        <div className="landing-proof-rail">
-          {proofFrames.map((frame) => (
-            <article key={frame.eyebrow} className="landing-proof-card">
-              <div className={`landing-proof-card-figure tone-${frame.accent}`} aria-hidden="true" />
-              <div className="eyebrow">{frame.eyebrow}</div>
-              <h3>{frame.title}</h3>
-              <p>{frame.detail}</p>
+              <div>
+                <h3>{card.title}</h3>
+                <p>{card.body}</p>
+              </div>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="landing-action-v2">
-        <div className="landing-action-copy">
-          <div className="eyebrow">System entry</div>
-          <h2>Open the route that matches the job, not the template pattern.</h2>
-          <p>
-            The command surface leads with priority, the asset archive preserves object identity, the incident board clarifies
-            escalation, and the observatory keeps path context readable during drill-in.
-          </p>
+      <section className="taste-marquee" aria-label="ForgeSentinel operating model">
+        <div>
+          asset evidence / incident escalation / topology context / audit replay / governed scans / Aether handoff /
         </div>
-
-        <div className="landing-action-directory">
-          {routeSlices.map((slice) => (
-            <Link key={slice.href} href={slice.href} className="landing-directory-row">
-              <strong>{slice.title}</strong>
-              <span>{slice.note}</span>
-              <ArrowRight size={16} />
-            </Link>
-          ))}
+        <div aria-hidden="true">
+          asset evidence / incident escalation / topology context / audit replay / governed scans / Aether handoff /
         </div>
       </section>
 
-      <footer className="landing-footer">
-        <div className="landing-footer-grid">
-          <div className="landing-footer-brand">
-            <strong>ForgeSentinel</strong>
-            <small>Industrial operational intelligence for manufacturing infrastructure, DevOps, and cybersecurity teams.</small>
-          </div>
-          <div className="landing-footer-col">
-            <span>Operations</span>
-            <Link href="/command">Command Center</Link>
-            <Link href="/assets">Asset Archive</Link>
-            <Link href="/incidents">Incident Board</Link>
-          </div>
-          <div className="landing-footer-col">
-            <span>Investigation</span>
-            <Link href="/topology">Topology Observatory</Link>
-            <Link href="/reports">Reports</Link>
-            <Link href="/settings">Settings</Link>
-          </div>
-          <div className="landing-footer-col">
-            <span>System</span>
-            <Link href="/command">Run Demo Scan</Link>
-            <Link href="/settings">Lab Mode</Link>
-            <Link href="/command">Shift Overview</Link>
+      <section className="landing-accordion-section">
+        <div className="landing-section-header compact">
+          <p className="taste-kicker">Route personality</p>
+          <h2>Each workspace carries its own pressure.</h2>
+        </div>
+        <div className="landing-accordion" aria-label="Workspace route previews">
+          {routeSlices.map((slice) => {
+            const Icon = slice.icon;
+            return (
+              <Link
+                key={slice.href}
+                href={slice.href}
+                className={`landing-accordion-item tone-${slice.tone}`}
+                onMouseEnter={() => setActiveSlice(slice)}
+                onFocus={() => setActiveSlice(slice)}
+              >
+                <img src={slice.image} alt="" />
+                <div>
+                  <Icon size={18} />
+                  <strong>{slice.title}</strong>
+                  <p>{slice.note}</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+        <p className="landing-active-note">{activeSlice.note}</p>
+      </section>
+
+      <section className="landing-desire">
+        <div className="landing-desire-copy">
+          <p className="taste-kicker">Operational clarity</p>
+          <h2>The interface earns trust by keeping consequence in frame.</h2>
+        </div>
+        <div className="landing-desire-rail">
+          <p className="landing-scrub-copy">
+            {scrubText.split(" ").map((word, index) => (
+              <span className="scrub-word" key={`${word}-${index}`}>
+                {word}{" "}
+              </span>
+            ))}
+          </p>
+          <div className="landing-stack">
+            {proofFrames.map((frame) => (
+              <article key={frame.title} className="landing-stack-card">
+                <h3>{frame.title}</h3>
+                <p>{frame.body}</p>
+              </article>
+            ))}
           </div>
         </div>
-        <div className="landing-footer-base">
-          <span>ForgeSentinel Industrial Command System</span>
-          <span>Detroit Forge Facility</span>
+      </section>
+
+      <section className="landing-final-cta">
+        <div>
+          <p className="taste-kicker">Start in the command lane</p>
+          <h2>Open the workspace and operate from live system state.</h2>
         </div>
+        <Link href="/command" className="taste-button taste-button-light">
+          Open command center
+          <ArrowRight size={18} />
+        </Link>
+      </section>
+
+      <footer className="taste-footer">
+        <div>
+          <strong>ForgeSentinel</strong>
+          <span>Industrial command system for credible security operations.</span>
+        </div>
+        <nav aria-label="Footer">
+          <Link href="/command">Command</Link>
+          <Link href="/assets">Assets</Link>
+          <Link href="/incidents">Incidents</Link>
+          <Link href="/topology">Topology</Link>
+          <Link href="/reports">Reports</Link>
+          <Link href="/settings">Settings</Link>
+        </nav>
       </footer>
     </main>
   );

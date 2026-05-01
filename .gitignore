@@ -17,6 +17,7 @@ __pycache__/
 dist/
 build/
 .next/
+tsconfig.tsbuildinfo
 
 # IDE
 .idea/
