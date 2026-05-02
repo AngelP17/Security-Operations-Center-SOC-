@@ -248,7 +248,7 @@ export default function AssetsPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="asset-archive-page">
+      <div ref={pageRef} className="asset-archive-page overflow-x-hidden w-full max-w-full">
         <section className="asset-archive-hero">
           <div className="asset-archive-copy">
             <div className="eyebrow">Asset archive</div>

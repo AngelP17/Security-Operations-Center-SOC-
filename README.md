@@ -18,6 +18,7 @@ graph TB
         subgraph "Operations"
             CMD[Command Center<br/>/command]
             AST[Asset Intelligence<br/>/assets]
+            ASTD[Asset Detail<br/>/assets/:assetId]
             INC[Incident Workbench<br/>/incidents/:id]
             SCN[Scan Control Center<br/>/scans]
         end
@@ -35,6 +36,7 @@ graph TB
 
         Shell --> CMD
         Shell --> AST
+        Shell --> ASTD
         Shell --> INC
         Shell --> SCN
         Shell --> TOP
@@ -47,12 +49,29 @@ graph TB
     API[FastAPI Backend<br/>localhost:8000/api] -.-> Shell
     CMD -.->|GET /api/command| API
     AST -.->|GET /api/assets| API
+    ASTD -.->|GET /api/assets/:id| API
     INC -.->|GET /api/incidents| API
     SCN -.->|GET /api/scans| API
     TOP -.->|GET /api/assets, /api/incidents| API
     RPL -.->|GET /api/replay| API
     SEV -.->|GET /api/scans/:id| API
 ```
+
+### Screenshots
+
+All screenshots are captured against a live backend with real populated data from the demo scan pipeline.
+
+| Landing | Command Center | Asset Intelligence |
+|:---:|:---:|:---:|
+| ![Landing](.github/screenshots/landing.png) | ![Command Center](.github/screenshots/command.png) | ![Asset Intelligence](.github/screenshots/assets.png) |
+
+| Incident Workbench | Scan Control Center | Topology Investigation |
+|:---:|:---:|:---:|
+| ![Incident Workbench](.github/screenshots/incidents.png) | ![Scan Control Center](.github/screenshots/scans.png) | ![Topology](.github/screenshots/topology.png) |
+
+| Reports | Settings | Asset Detail |
+|:---:|:---:|:---:|
+| ![Reports](.github/screenshots/reports.png) | ![Settings](.github/screenshots/settings.png) | Asset detail view available at `/assets/:assetId` |
 
 ## Data Pipeline Architecture
 

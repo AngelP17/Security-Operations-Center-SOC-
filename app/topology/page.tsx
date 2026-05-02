@@ -502,7 +502,7 @@ export default function TopologyPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="observatory-page">
+      <div ref={pageRef} className="observatory-page overflow-x-hidden w-full max-w-full">
         <section className="observatory-hero">
           <div className="observatory-copy">
             <div className="eyebrow">Topology observatory</div>

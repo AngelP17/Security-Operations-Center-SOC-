@@ -107,7 +107,7 @@ export default function ReplayPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="replay-page">
+      <div ref={pageRef} className="replay-page overflow-x-hidden w-full max-w-full">
         <section className="replay-hero">
           <div className="replay-copy">
             <div className="eyebrow">Audit replay</div>

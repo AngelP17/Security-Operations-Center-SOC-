@@ -176,7 +176,7 @@ export default function ReportsPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="reports-page">
+      <div ref={pageRef} className="reports-page overflow-x-hidden w-full max-w-full">
         <section className="reports-hero">
           <div className="reports-copy">
             <div className="eyebrow">Reports</div>

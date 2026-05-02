@@ -28,7 +28,7 @@ const routeSlices = [
     icon: Gauge,
     title: "Command",
     note: "Incident pressure, scan posture, queue priority, and response moves stay in one authored lane.",
-    image: "https://picsum.photos/seed/industrial-command-room/1200/900",
+    image: null,
     tone: "command",
   },
   {
@@ -36,7 +36,7 @@ const routeSlices = [
     icon: Boxes,
     title: "Assets",
     note: "Every device keeps identity, ownership, authorization state, service evidence, and risk rationale attached.",
-    image: "https://picsum.photos/seed/manufacturing-asset-ledger/1200/900",
+    image: null,
     tone: "assets",
   },
   {
@@ -44,7 +44,7 @@ const routeSlices = [
     icon: TicketCheck,
     title: "Incidents",
     note: "Escalation reads as a response story with confidence, evidence, recommendations, and Aether handoff.",
-    image: "https://picsum.photos/seed/security-incident-board/1200/900",
+    image: null,
     tone: "incidents",
   },
   {
@@ -52,7 +52,7 @@ const routeSlices = [
     icon: Network,
     title: "Topology",
     note: "Segment relationships remain inspectable while the analyst drills from graph context into real objects.",
-    image: "https://picsum.photos/seed/industrial-network-topology/1200/900",
+    image: null,
     tone: "topology",
   },
 ];
@@ -62,37 +62,37 @@ const capabilityCards = [
     className: "landing-bento-wide",
     title: "Risk decisions carry their evidence.",
     body: "Ports, authorization state, asset criticality, triggered rules, and incident correlations remain readable instead of being flattened into a decorative score.",
-    image: "https://picsum.photos/seed/risk-evidence-console/1400/900",
+    image: null,
   },
   {
     className: "landing-bento-small",
     title: "Real scan posture",
     body: "Safe demo runs and authorized lab scans are separated by governance.",
-    image: "https://picsum.photos/seed/tcp-scan-lab/900/900",
+    image: null,
   },
   {
     className: "landing-bento-small",
     title: "Aether-ready handoff",
     body: "Local response records can become operational tickets without losing audit context.",
-    image: "https://picsum.photos/seed/operations-handoff/900/900",
+    image: null,
   },
   {
     className: "landing-bento-third",
     title: "Audit replay",
     body: "Every recommendation can be traced back to the observations that made it credible.",
-    image: "https://picsum.photos/seed/audit-replay-ledger/900/900",
+    image: null,
   },
   {
     className: "landing-bento-third",
     title: "OT aware",
     body: "Industrial protocols and conservative profiles are treated as first-class operating constraints.",
-    image: "https://picsum.photos/seed/industrial-control-system/900/900",
+    image: null,
   },
   {
     className: "landing-bento-third",
     title: "Segment clarity",
     body: "Topology, incidents, and object records share one mental model.",
-    image: "https://picsum.photos/seed/network-segment-map/900/900",
+    image: null,
   },
 ];
 
@@ -284,10 +284,10 @@ export default function LandingPage() {
         </div>
 
         <div className="landing-bento-grid">
-          {capabilityCards.map((card) => (
+          {capabilityCards.map((card, idx) => (
             <article key={card.title} className={`landing-bento-card group ${card.className}`}>
               <div className="landing-bento-image">
-                <img src={card.image} alt="" />
+                <div className={`landing-bento-visual visual-${idx % 6}`} aria-hidden="true" />
               </div>
               <div>
                 <h3>{card.title}</h3>
@@ -323,7 +323,7 @@ export default function LandingPage() {
                 onMouseEnter={() => setActiveSlice(slice)}
                 onFocus={() => setActiveSlice(slice)}
               >
-                <img src={slice.image} alt="" />
+                <div className={`landing-accordion-visual visual-${slice.tone}`} aria-hidden="true" />
                 <div>
                   <Icon size={18} />
                   <strong>{slice.title}</strong>

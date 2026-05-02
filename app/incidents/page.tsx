@@ -105,7 +105,7 @@ export default function IncidentsPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="incident-board-page">
+      <div ref={pageRef} className="incident-board-page overflow-x-hidden w-full max-w-full">
         <section className="incident-board-hero">
           <div className="incident-board-copy">
             <div className="eyebrow">Incident board</div>

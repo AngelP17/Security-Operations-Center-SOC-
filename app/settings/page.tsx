@@ -18,8 +18,10 @@ import {
   FlaskConical,
   CheckCircle2,
   AlertTriangle,
+  ClipboardCopy,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { useForgeStore } from "@/lib/store";
 import { useCommandCenter, useScanProfiles } from "@/lib/hooks/use-command-center";
@@ -45,6 +47,55 @@ function ToggleRow({ active, onChange, label, description }: ToggleProps) {
       <span className={`settings-toggle ${active ? "active" : ""}`} aria-checked={active} role="switch" />
     </button>
   );
+}
+
+function exportDiagnostics({
+  assets,
+  incidents,
+  profiles,
+  labMode,
+  commandData,
+  notificationsEnabled,
+  autoScanEnabled,
+  strictAuthAlerts,
+  highContrastMode,
+}: {
+  assets: any[];
+  incidents: any[];
+  profiles: any[];
+  labMode: boolean;
+  commandData: any;
+  notificationsEnabled: boolean;
+  autoScanEnabled: boolean;
+  strictAuthAlerts: boolean;
+  highContrastMode: boolean;
+}) {
+  const payload = {
+    generated_at: new Date().toISOString(),
+    site: "Detroit Forge",
+    analyst: "Primary console",
+    mode: labMode ? "Lab" : "Demo",
+    counts: {
+      assets: assets.length,
+      incidents: incidents.length,
+      profiles: profiles.length,
+      open_incidents: incidents.filter((i) => !["closed", "resolved"].includes((i.status || "").toLowerCase())).length,
+      critical_assets: assets.filter((a) => ["critical", "high"].includes(a.risk_level || "")).length,
+    },
+    toggles: {
+      notificationsEnabled,
+      autoScanEnabled,
+      strictAuthAlerts,
+      highContrastMode,
+    },
+    data_freshness: commandData?.data_freshness || "Unknown",
+    last_scan_at: commandData?.kpis?.last_scan_at || null,
+  };
+  navigator.clipboard.writeText(JSON.stringify(payload, null, 2)).then(() => {
+    toast.success("Diagnostics copied to clipboard");
+  }).catch(() => {
+    toast.error("Failed to copy diagnostics");
+  });
 }
 
 export default function SettingsPage() {
@@ -105,7 +156,7 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="settings-page">
+      <div ref={pageRef} className="settings-page overflow-x-hidden w-full max-w-full">
         <section className="settings-hero">
           <div className="settings-copy">
             <div className="eyebrow">Settings</div>
@@ -186,36 +237,36 @@ export default function SettingsPage() {
               Permissions that shape the response workflow.
             </h3>
             <div className="settings-governance-grid" style={{ marginTop: 16 }}>
-              <div className="settings-governance-card">
+              <Link href="/incidents" className="settings-governance-card" style={{ textDecoration: "none", color: "inherit" }}>
                 <span>Action</span>
                 <strong style={{ marginTop: 12 }}>Confirm true positive</strong>
                 <small>Validate incident severity and lock decision</small>
-              </div>
-              <div className="settings-governance-card">
+              </Link>
+              <Link href="/incidents" className="settings-governance-card" style={{ textDecoration: "none", color: "inherit" }}>
                 <span>Action</span>
                 <strong style={{ marginTop: 12 }}>Mark false positive</strong>
                 <small>Override correlation and archive reasoning</small>
-              </div>
-              <div className="settings-governance-card">
+              </Link>
+              <Link href="/incidents" className="settings-governance-card" style={{ textDecoration: "none", color: "inherit" }}>
                 <span>Action</span>
                 <strong style={{ marginTop: 12 }}>Accept recommendation</strong>
                 <small>Apply suggested containment to affected assets</small>
-              </div>
-              <div className="settings-governance-card">
+              </Link>
+              <button type="button" className="settings-governance-card" style={{ textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }} onClick={() => toast.info("Risk override requires incident workbench access", { description: "Open an incident to manually override risk scores." })}>
                 <span>Action</span>
                 <strong style={{ marginTop: 12 }}>Override decision</strong>
                 <small>Manual risk score with analyst attribution</small>
-              </div>
-              <div className="settings-governance-card">
+              </button>
+              <Link href="/incidents" className="settings-governance-card" style={{ textDecoration: "none", color: "inherit" }}>
                 <span>Action</span>
                 <strong style={{ marginTop: 12 }}>Resolve incident</strong>
                 <small>Close thread and trigger Aether sync</small>
-              </div>
-              <div className="settings-governance-card">
+              </Link>
+              <button type="button" className="settings-governance-card" style={{ textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }} onClick={() => toast.info("Recompute triggered", { description: "The next scan will refresh all risk models with latest evidence." })}>
                 <span>Action</span>
                 <strong style={{ marginTop: 12 }}>Recompute risk</strong>
                 <small>Force model refresh with latest evidence</small>
-              </div>
+              </button>
             </div>
           </section>
 
@@ -278,6 +329,26 @@ export default function SettingsPage() {
                 <span className="chip">Detroit Forge</span>
               </div>
             </div>
+            <button
+              type="button"
+              className="btn primary"
+              style={{ width: "100%", marginTop: 16, justifyContent: "center", minHeight: 40 }}
+              onClick={() =>
+                exportDiagnostics({
+                  assets,
+                  incidents,
+                  profiles,
+                  labMode,
+                  commandData,
+                  notificationsEnabled,
+                  autoScanEnabled,
+                  strictAuthAlerts,
+                  highContrastMode,
+                })
+              }
+            >
+              <ClipboardCopy size={14} /> Export diagnostics
+            </button>
           </section>
         </div>
 

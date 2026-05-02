@@ -141,7 +141,7 @@ export default function IncidentWorkbench() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="incident-detail-page">
+      <div ref={pageRef} className="incident-detail-page overflow-x-hidden w-full max-w-full">
         <section className="incident-hero">
           <div style={{ minWidth: 0 }}>
             <div className="eyebrow">Incident Workbench</div>

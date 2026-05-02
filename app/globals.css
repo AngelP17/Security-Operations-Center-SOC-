@@ -4706,8 +4706,10 @@ tbody tr:hover {
   background:
     linear-gradient(180deg, rgba(7, 10, 15, 0.16), rgba(7, 10, 15, 0.72) 72%, #070a0f),
     radial-gradient(circle at 50% 20%, rgba(217, 154, 43, 0.18), transparent 28rem),
-    url("https://picsum.photos/seed/manufacturing-security-command/2400/1400") center / cover;
-  filter: grayscale(0.75) contrast(1.18) brightness(0.62);
+    radial-gradient(circle at 80% 60%, rgba(34, 211, 238, 0.08), transparent 22rem),
+    radial-gradient(circle at 20% 70%, rgba(244, 241, 234, 0.06), transparent 18rem),
+    conic-gradient(from 180deg at 50% 50%, rgba(217,154,43,0.06) 0deg, rgba(34,211,238,0.04) 90deg, rgba(217,154,43,0.06) 180deg, rgba(34,211,238,0.04) 270deg, rgba(217,154,43,0.06) 360deg);
+  filter: contrast(1.08) brightness(0.72);
 }
 
 .taste-hero::after {
@@ -6108,4 +6110,86 @@ select:focus-visible {
   .scan-history-card {
     grid-template-columns: 1fr;
   }
+}
+
+/* PRODUCT-NATIVE BENTO VISUALS — REPLACING PICSUM */
+.landing-bento-visual {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.visual-0 {
+  background:
+    radial-gradient(circle at 30% 30%, rgba(217, 154, 43, 0.22), transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(34, 211, 238, 0.12), transparent 50%),
+    linear-gradient(135deg, rgba(244, 241, 234, 0.04) 0%, transparent 50%);
+}
+
+.visual-1 {
+  background:
+    radial-gradient(circle at 60% 20%, rgba(34, 211, 238, 0.18), transparent 45%),
+    radial-gradient(circle at 20% 80%, rgba(217, 154, 43, 0.14), transparent 50%),
+    repeating-linear-gradient(45deg, rgba(244, 241, 234, 0.02) 0px, rgba(244, 241, 234, 0.02) 1px, transparent 1px, transparent 12px);
+}
+
+.visual-2 {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(217, 154, 43, 0.16), transparent 55%),
+    conic-gradient(from 0deg at 50% 50%, rgba(34, 211, 238, 0.08) 0deg, transparent 60deg, rgba(217, 154, 43, 0.08) 120deg, transparent 180deg, rgba(34, 211, 238, 0.08) 240deg, transparent 300deg);
+}
+
+.visual-3 {
+  background:
+    radial-gradient(circle at 80% 30%, rgba(217, 154, 43, 0.2), transparent 48%),
+    radial-gradient(circle at 10% 70%, rgba(34, 211, 238, 0.12), transparent 52%),
+    linear-gradient(90deg, rgba(244, 241, 234, 0.03) 0 1px, transparent 1px 48px),
+    linear-gradient(0deg, rgba(244, 241, 234, 0.03) 0 1px, transparent 1px 48px);
+}
+
+.visual-4 {
+  background:
+    radial-gradient(circle at 40% 60%, rgba(34, 211, 238, 0.16), transparent 50%),
+    radial-gradient(circle at 80% 10%, rgba(217, 154, 43, 0.14), transparent 45%),
+    repeating-radial-gradient(circle at 50% 50%, rgba(244, 241, 234, 0.02) 0px, transparent 2px, rgba(244, 241, 234, 0.02) 4px, transparent 6px);
+}
+
+.visual-5 {
+  background:
+    radial-gradient(circle at 20% 40%, rgba(217, 154, 43, 0.18), transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(34, 211, 238, 0.14), transparent 45%),
+    linear-gradient(45deg, rgba(244, 241, 234, 0.025) 0%, transparent 50%, rgba(244, 241, 234, 0.025) 100%);
+}
+
+.landing-accordion-visual {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.visual-command {
+  background:
+    radial-gradient(circle at 30% 40%, rgba(217, 154, 43, 0.22), transparent 55%),
+    radial-gradient(circle at 70% 60%, rgba(34, 211, 238, 0.1), transparent 50%);
+}
+
+.visual-assets {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(34, 211, 238, 0.18), transparent 50%),
+    radial-gradient(circle at 20% 80%, rgba(217, 154, 43, 0.12), transparent 45%);
+}
+
+.visual-incidents {
+  background:
+    radial-gradient(circle at 60% 40%, rgba(217, 154, 43, 0.2), transparent 50%),
+    radial-gradient(circle at 30% 70%, rgba(34, 211, 238, 0.1), transparent 48%);
+}
+
+.visual-topology {
+  background:
+    radial-gradient(circle at 40% 50%, rgba(34, 211, 238, 0.16), transparent 52%),
+    radial-gradient(circle at 80% 20%, rgba(217, 154, 43, 0.14), transparent 45%);
 }

@@ -178,7 +178,7 @@ export default function ScanDetailPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="scan-detail-page">
+      <div ref={pageRef} className="scan-detail-page overflow-x-hidden w-full max-w-full">
         <section className="scan-detail-hero">
           <div>
             <div className="eyebrow">Scan evidence theater</div>

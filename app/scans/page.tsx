@@ -208,7 +208,7 @@ export default function ScansPage() {
 
   return (
     <AppShell>
-      <div ref={pageRef} className="scans-page">
+      <div ref={pageRef} className="scans-page overflow-x-hidden w-full max-w-full">
         <section className="scans-hero">
           <div className="scans-hero-copy">
             <div className="eyebrow">Operational intelligence console</div>
