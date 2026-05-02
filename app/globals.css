@@ -4837,8 +4837,23 @@ tbody tr:hover {
 }
 
 .inline-photo-forge {
-  background-image: url("https://picsum.photos/seed/factory-console-inline/500/220");
-  filter: grayscale(0.7) contrast(1.28);
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 40%, #1f1f1f 100%);
+  position: relative;
+  overflow: hidden;
+}
+.inline-photo-forge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(244,241,234,0.04) 20px),
+    repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(244,241,234,0.04) 20px);
+}
+.inline-photo-forge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 50%, rgba(234,179,8,0.12) 0%, transparent 60%);
 }
 
 .landing-bento-grid {
