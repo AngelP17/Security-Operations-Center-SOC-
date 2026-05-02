@@ -170,11 +170,11 @@ export default function IncidentsPage() {
                       <span>{leadIncident.status}</span>
                       <span>{leadIncident.confidence_score}% confidence</span>
                       <span>{leadIncident.affected_assets.length} assets</span>
-                      <span>{leadIncident.aether_sync_status || "Aether pending"}</span>
+                      <span>{leadIncident.aether_sync_status || "Local Aether record"}</span>
                     </div>
                   </Link>
                 ) : (
-                  <p className="muted">No active lead incident is available.</p>
+                  <p className="muted">Run a safe scan to promote the highest-risk case into this lead lane.</p>
                 )}
               </section>
 
@@ -221,7 +221,7 @@ export default function IncidentsPage() {
                           </div>
                           <div className="incident-card-footer">
                             <strong>{incident.affected_assets.length} affected asset{incident.affected_assets.length === 1 ? "" : "s"}</strong>
-                            <small>{incident.aether_sync_status || "Awaiting Aether sync"}</small>
+                            <small>{incident.aether_sync_status || "Local Aether record"}</small>
                           </div>
                         </Link>
                       </div>

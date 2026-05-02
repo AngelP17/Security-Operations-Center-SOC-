@@ -197,7 +197,7 @@ export default function ScansPage() {
     {
       label: "Findings retained",
       value: `${findingsQuery.data?.total || 0}`,
-      detail: latestCompletedScan ? `From ${latestCompletedScan.scan_uid}` : "Awaiting evidence",
+      detail: latestCompletedScan ? `From ${latestCompletedScan.scan_uid}` : "Run a demo scan to create evidence",
     },
     {
       label: "Profiles loaded",

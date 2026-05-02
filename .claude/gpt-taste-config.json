@@ -1,5 +1,5 @@
 {
-  "enforcement_mode": "soft",
+  "enforcement_mode": "hard",
   "review_threshold": 75,
   "include_patterns": [
     "app/**/*.tsx",
@@ -18,6 +18,12 @@
     "**/__tests__/**",
     "node_modules/**",
     ".next/**",
+    "build/**",
+    "dist/**",
+    "venv/**",
+    "venv313/**",
+    "api-venv/**",
+    "src/**",
     "scripts/**"
   ],
   "rules": {

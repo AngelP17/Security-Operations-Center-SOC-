@@ -263,7 +263,7 @@ export default function SettingsPage() {
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontSize: 12 }}>
                 <span style={{ color: "rgba(244,241,234,0.68)" }}>Data freshness</span>
-                <span className="chip">{commandData?.data_freshness || "Awaiting telemetry"}</span>
+                <span className="chip">{commandData?.data_freshness || "Telemetry not hydrated"}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontSize: 12 }}>
                 <span style={{ color: "rgba(244,241,234,0.68)" }}>Last scan</span>

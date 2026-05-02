@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     : "No scan data";
   const freshnessLabel = commandData?.data_freshness
     ? `Data ${commandData.data_freshness}`
-    : "Awaiting telemetry";
+    : "Telemetry not hydrated";
   const isScanPending = demoScan.isPending || labScan.isPending;
   const liveScanLabel = activeScan
     ? `Active ${activeScan.status} · ${activeScan.progress_percent}%`

@@ -155,16 +155,15 @@ export default function LandingPage() {
           ease: "power3.out",
         });
 
-        gsap.from(".landing-bento-card", {
-          y: 70,
-          scale: 0.96,
-          opacity: 0,
-          duration: 0.9,
-          stagger: 0.08,
+        gsap.to(".landing-bento-card", {
+          y: -8,
+          duration: 0.8,
+          stagger: 0.06,
           ease: "power3.out",
           scrollTrigger: {
             trigger: ".landing-bento-grid",
-            start: "top 78%",
+            start: "top 82%",
+            toggleActions: "play none none reverse",
           },
         });
 
@@ -183,22 +182,17 @@ export default function LandingPage() {
         });
 
         gsap.utils.toArray<HTMLElement>(".landing-stack-card").forEach((card, index) => {
-          gsap.fromTo(
-            card,
-            { y: 120, scale: 0.92, opacity: 0.15 },
-            {
-              y: index * -18,
-              scale: 1 - index * 0.018,
-              opacity: 1,
-              ease: "none",
-              scrollTrigger: {
-                trigger: card,
-                start: "top 86%",
-                end: "top 36%",
-                scrub: true,
-              },
+          gsap.to(card, {
+            y: index * -18,
+            scale: 1 - index * 0.018,
+            ease: "none",
+            scrollTrigger: {
+              trigger: card,
+              start: "top 86%",
+              end: "top 36%",
+              scrub: true,
             },
-          );
+          });
         });
 
         ScrollTrigger.create({
@@ -266,9 +260,9 @@ export default function LandingPage() {
         <div className="taste-live-panel">
           <span>
             <Radar size={14} />
-            {command?.data_freshness || "Telemetry waiting for backend signal"}
+            {command?.data_freshness || "Connect API or run demo scan"}
           </span>
-          <strong>{leadIncident ? leadIncident.incident_uid : "No active lead"}</strong>
+          <strong>{leadIncident ? leadIncident.incident_uid : "Ready for first lead"}</strong>
         </div>
       </section>
 

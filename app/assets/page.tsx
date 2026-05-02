@@ -26,6 +26,7 @@ function CopyButton({ value }: { value: string }) {
     <button
       className="btn"
       style={{ padding: "0 6px", minHeight: 24, marginLeft: 4, fontSize: 11 }}
+      aria-label={`Copy ${value}`}
       onClick={(event) => {
         event.stopPropagation();
         navigator.clipboard.writeText(value);

@@ -77,7 +77,7 @@ function buildSignalDeck({
           ? `“${command.recommended_action}”`
           : "“Once the first scan completes, recommended containment language will surface here for the next shift.”",
       label: "Response guidance",
-      detail: command?.data_freshness ? `Data freshness: ${command.data_freshness}` : "Awaiting telemetry",
+      detail: command?.data_freshness ? `Data freshness: ${command.data_freshness}` : "Run demo scan to hydrate telemetry",
       tone: "response",
     },
   ];
@@ -145,14 +145,14 @@ function CinematicHero({
       <div className="command-cinema-stage">
         <div className="command-cinema-figure">
           <div className="command-cinema-figure-label">Response in focus</div>
-          <strong>{topIncident?.incident_uid || "Awaiting incident signal"}</strong>
+          <strong>{topIncident?.incident_uid || "Ready for first incident lead"}</strong>
           <p>
             {topIncident?.title ||
               "Run a safe discovery scan to establish asset context, exposure findings, and the first response thread."}
           </p>
         </div>
         <div className="command-cinema-note">
-          <span>{command?.data_freshness ? `Data ${command.data_freshness}` : "Telemetry pending"}</span>
+          <span>{command?.data_freshness ? `Data ${command.data_freshness}` : "Telemetry not hydrated"}</span>
           <strong>{command?.recommended_action || "Recommendation language appears here once the backend correlates the first incident."}</strong>
         </div>
       </div>
@@ -657,7 +657,7 @@ function OperationsControl({
           </div>
           <div className="metric-row">
             <span>Recommended move</span>
-            <strong style={{ maxWidth: 220, textAlign: "right" }}>{command?.recommended_action || "Awaiting first recommendation"}</strong>
+            <strong style={{ maxWidth: 220, textAlign: "right" }}>{command?.recommended_action || "Run demo scan for recommendation"}</strong>
           </div>
         </div>
       </div>
